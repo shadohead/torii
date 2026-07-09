@@ -1,6 +1,8 @@
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+
+export const VERSION = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8')).version;
 
 export const DATA_DIR = process.env.TORII_DATA_DIR || join(homedir(), '.torii');
 export const POSTER_CACHE_DIR = join(DATA_DIR, 'posters');

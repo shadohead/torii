@@ -18,24 +18,35 @@ Browse the season's charts, tap an episode, and it lands in Plex renamed and org
 
 ## Setup
 
-Requirements: Node.js >= 20 and a Plex Media Server (ideally on the same machine).
-macOS is the primary target; Linux runs fine minus the launchd/app conveniences.
+One command, even on a machine with nothing installed:
 
 ```sh
-git clone https://github.com/shadohead/torii.git
-cd torii
-npm run setup
+curl -fsSL https://raw.githubusercontent.com/shadohead/torii/main/install.sh | bash
 ```
 
-That installs dependencies, registers the background service (starts at login), builds a double-clickable `Torii.app`, and opens the UI.
+That fetches the source to `~/.torii/app`, provisions a private Node.js runtime under `~/.torii/node` if your system has none (no Homebrew, no sudo), installs dependencies, registers the background service (starts at login), builds a double-clickable `Torii.app`, and opens the UI.
 It also prints the URL to open on your phone.
 
+From a git checkout instead: `npm run setup` does the same for the checkout (or `bash scripts/setup.sh` if you don't have Node yet).
 Prefer minimal? `npm install && npm start` runs it in the foreground with no system integration.
+macOS is the primary target; Linux runs fine minus the launchd/app conveniences.
+A Plex Media Server on the same machine completes the picture, but Torii runs without one.
 
 Then open **Setup** in the UI and:
 
 1. Point the library folder somewhere your Plex server watches (Torii can also create an "Anime" library in Plex for you).
 2. Check the Plex row: on macOS the token is auto-discovered; elsewhere paste your Plex URL and token.
+
+## Uninstall
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/shadohead/torii/main/uninstall.sh | bash
+```
+
+Or `npm run uninstall` from a checkout.
+This stops and removes the background service, deletes `Torii.app`, clears partial downloads (`.incoming`), and removes the program files including the private Node runtime.
+Your media library is never touched - everything already organized into Plex stays.
+Settings and watchlist survive for a future reinstall; add `--purge` (`... | bash -s -- --purge`) to remove those too.
 
 ## Configuration
 

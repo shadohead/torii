@@ -7,6 +7,7 @@ set -euo pipefail
 PROJ="$(cd "$(dirname "$0")/.." && pwd)"
 NODE="$(command -v node)"
 PORT="${TORII_PORT:-3939}"
+VERSION="$(node -p "require('$PROJ/package.json').version")"
 
 APP_DIR="/Applications"
 [ -w "$APP_DIR" ] || { APP_DIR="$HOME/Applications"; mkdir -p "$APP_DIR"; }
@@ -57,7 +58,7 @@ LAUNCHER
 chmod +x "$APP/Contents/MacOS/Torii"
 
 # ---- Info.plist ----
-cat > "$APP/Contents/Info.plist" <<'PLIST'
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -65,8 +66,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
   <key>CFBundleName</key><string>Torii</string>
   <key>CFBundleDisplayName</key><string>Torii</string>
   <key>CFBundleIdentifier</key><string>com.torii.app</string>
-  <key>CFBundleVersion</key><string>1.0.0</string>
-  <key>CFBundleShortVersionString</key><string>1.0.0</string>
+  <key>CFBundleVersion</key><string>$VERSION</string>
+  <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleExecutable</key><string>Torii</string>
   <key>CFBundleIconFile</key><string>Torii</string>
   <key>CFBundlePackageType</key><string>APPL</string>

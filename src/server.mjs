@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { networkInterfaces } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { getSettings, setSettings, db } from './db.mjs';
-import { POSTER_CACHE_DIR, PORT_OVERRIDE } from './config.mjs';
+import { POSTER_CACHE_DIR, PORT_OVERRIDE, VERSION } from './config.mjs';
 import * as anilist from './anilist.mjs';
 import * as nyaa from './nyaa.mjs';
 import * as plex from './plex.mjs';
@@ -106,7 +106,7 @@ const routes = [
       libraryDir: s.libraryDir,
       activeTorrents: torrents.activeCount(),
       loginItem: login,
-      version: '1.0.0',
+      version: VERSION,
     };
   }],
 
