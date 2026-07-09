@@ -50,7 +50,8 @@ if [ "$(uname)" = "Darwin" ] && [ "$NO_SERVICE" -eq 0 ]; then
 else
   [ "$(uname)" = "Darwin" ] || echo "▸ non-macOS: no managed service - supervise 'npm start' yourself (systemd, pm2, ...)"
   echo "▸ starting Torii in the background"
-  nohup node src/server.mjs >/dev/null 2>&1 &
+  # Absolute path so the process is findable by the uninstaller.
+  nohup node "$PWD/src/server.mjs" >/dev/null 2>&1 &
 fi
 
 if [ "$(uname)" = "Darwin" ] && [ "$NO_APP" -eq 0 ]; then

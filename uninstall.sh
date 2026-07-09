@@ -24,13 +24,17 @@ main() {
   LABEL="com.torii.service"
   PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
 
-  # Resolve the library folder before any data is removed so .incoming can be cleaned.
-  LIBRARY_DIR=""
-  if command -v sqlite3 >/dev/null 2>&1 && [ -f "$DATA_DIR/torii.db" ]; then
-    LIBRARY_DIR="$(sqlite3 "$DATA_DIR/torii.db" \
-      "select value from settings where key='libraryDir'" 2>/dev/null | sed 's/^"//; s/"$//')" || true
-  fi
+  # Resolve settings before any data is removed: the library folder (so .incoming
+  # can be cleaned) and the port (so a running instance can be found and stopped).
+  setting() {
+    command -v sqlite3 >/dev/null 2>&1 && [ -f "$DATA_DIR/torii.db" ] \
+      && sqlite3 "$DATA_DIR/torii.db" "select value from settings where key='$1'" 2>/dev/null | sed 's/^"//; s/"$//' \
+      || true
+  }
+  LIBRARY_DIR="$(setting libraryDir)"
   [ -n "$LIBRARY_DIR" ] || LIBRARY_DIR="${TORII_LIBRARY_DIR:-$HOME/Movies/Anime}"
+  PORT="${TORII_PORT:-$(setting port)}"
+  [ -n "$PORT" ] || PORT=3939
 
   if [ "$(uname)" = "Darwin" ]; then
     echo "▸ stopping the background service"
@@ -38,6 +42,11 @@ main() {
     rm -f "$PLIST"
     echo "▸ removing Torii.app"
     rm -rf "/Applications/Torii.app" "$HOME/Applications/Torii.app"
+  fi
+  # Stop foreground/nohup instances too: whatever owns the port is torii
+  # (the server guarantees single ownership), plus any path-identifiable ones.
+  if command -v lsof >/dev/null 2>&1; then
+    for pid in $(lsof -ti "tcp:$PORT" 2>/dev/null); do kill "$pid" 2>/dev/null || true; done
   fi
   pkill -f "torii.*src/server\.mjs" 2>/dev/null || true
 
