@@ -97,6 +97,7 @@ const routes = [
 
   ['GET', /^\/api\/downloads$/, async () => torrents.listDownloads()],
   ['DELETE', /^\/api\/downloads\/(\d+)$/, async (m) => torrents.cancelDownload(Number(m[1]))],
+  ['DELETE', /^\/api\/downloads\/(\d+)\/files$/, async (m) => torrents.deleteDownloadFiles(Number(m[1]))],
 
   ['GET', /^\/api\/watchlist$/, async () => watchlist.listWatchlist()],
   ['POST', /^\/api\/watchlist$/, async (_m, _url, body) =>
@@ -111,6 +112,11 @@ const routes = [
     if (!row) return { ok: false, reason: 'not tracked' };
     const grabbed = await watchlist.checkShow(row);
     return { ok: true, grabbed };
+  }],
+  ['POST', /^\/api\/watchlist\/(\d+)\/catch-up$/, async (m) => {
+    const row = watchlist.listWatchlist().find(r => r.anilist_id === Number(m[1]));
+    if (!row) return { ok: false, reason: 'not tracked' };
+    return watchlist.catchUpShow(row);
   }],
 
   ['GET', /^\/api\/status$/, async () => {

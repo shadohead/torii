@@ -145,6 +145,46 @@ export async function checkShow(row) {
   return grabbed;
 }
 
+// Explicit historical sync. Adding a show starts at its current release so it
+// only follows future episodes; this action intentionally queues every matching
+// episode that Nyaa currently returns for the pinned group and quality.
+export async function catchUpShow(row) {
+  const show = await getAnime(row.anilist_id).catch(() => null);
+  const bases = show ? basesFor(show, row.title) : [row.search_title];
+  const releases = await releasesForBases(row.group_name, bases, row.quality);
+  const candidates = releases.filter(r =>
+    r.parsed.group && r.parsed.group.toLowerCase() === row.group_name.toLowerCase() &&
+    (!r.parsed.quality || r.parsed.quality === row.quality) &&
+    !r.parsed.batch && r.parsed.episode != null &&
+    (r.parsed.season == null || r.parsed.season === row.season) &&
+    bases.some(b => titleMatches(r.title, b))
+  );
+
+  // One best release per episode, so a v2 or re-upload cannot produce a
+  // duplicate torrent. Keep all historical matches; unlike checkShow there is
+  // deliberately no recency guard or three-episode safety cap.
+  const byEp = new Map();
+  for (const rel of candidates) {
+    const prev = byEp.get(rel.parsed.episode);
+    if (!prev || (rel.pubDate || 0) > (prev.pubDate || 0)) byEp.set(rel.parsed.episode, rel);
+  }
+  const picks = [...byEp.values()].sort((a, b) => a.parsed.episode - b.parsed.episode);
+  let grabbed = 0;
+  for (const rel of picks) {
+    const res = await startDownload({
+      title: rel.title, torrentUrl: rel.torrentUrl, infoHash: rel.infoHash, size: rel.size,
+      parsed: rel.parsed, showTitle: row.title, anilistId: row.anilist_id, season: row.season, source: 'catch-up',
+    });
+    if (res.ok) grabbed++;
+  }
+  if (picks.length) {
+    db.prepare('UPDATE watchlist SET last_episode = MAX(last_episode, ?), checked_at = ? WHERE anilist_id = ?')
+      .run(Math.max(...picks.map(r => r.parsed.episode)), Date.now(), row.anilist_id);
+  }
+  broadcast('watchlist', { anilistId: row.anilist_id, action: 'catch-up', grabbed });
+  return { ok: true, grabbed, found: picks.length };
+}
+
 let timer = null;
 export function startScheduler() {
   const tick = async () => {

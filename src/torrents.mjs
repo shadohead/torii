@@ -1,4 +1,5 @@
-import { join } from 'node:path';
+import { existsSync, rmSync } from 'node:fs';
+import { join, resolve, sep } from 'node:path';
 import { db, getSettings } from './db.mjs';
 import { incomingDir, organizeDownload, cleanupIncoming, freeBytes } from './organize.mjs';
 import { scanLibrary } from './plex.mjs';
@@ -50,7 +51,7 @@ function setStatus(dl, status, error = null) {
 }
 
 export function listDownloads() {
-  const rows = db.prepare(`SELECT * FROM downloads WHERE status != 'canceled' ORDER BY added_at DESC LIMIT 200`).all();
+  const rows = db.prepare(`SELECT * FROM downloads WHERE status NOT IN ('canceled', 'deleted') ORDER BY added_at DESC LIMIT 200`).all();
   for (const row of rows) {
     const a = active.get(row.info_hash);
     if (a?.torrent) {
@@ -69,7 +70,7 @@ export function listDownloads() {
 // Enqueue a nyaa release. meta: { title, torrentUrl, infoHash, size, parsed, showTitle, anilistId, season, source }
 export async function startDownload(meta) {
   const existing = meta.infoHash && getByHash.get(meta.infoHash.toLowerCase());
-  if (existing && !['error', 'canceled'].includes(existing.status)) {
+  if (existing && !['error', 'canceled', 'deleted'].includes(existing.status)) {
     return { ok: false, reason: 'already downloading or downloaded', id: existing.id };
   }
 
@@ -233,6 +234,33 @@ export function cancelDownload(id) {
   updStatus.run('canceled', null, id);
   broadcast('download', { id, status: 'canceled' });
   return { ok: true, status: 'canceled' };
+}
+
+// Remove the Plex-visible hardlinks for a completed release. This is deliberately
+// separate from cancelDownload: tapping cancel must never erase completed media.
+export function deleteDownloadFiles(id) {
+  const dl = getById.get(id);
+  if (!dl) return { ok: false, reason: 'not found' };
+  if (!['seeding', 'done'].includes(dl.status)) return { ok: false, reason: 'wait for the download to finish first' };
+
+  // A seeding torrent owns a second hardlink in .incoming. Stopping it first
+  // makes this an explicit "delete everywhere" action rather than silently
+  // keeping a hidden copy around.
+  if (dl.status === 'seeding') cancelDownload(id);
+
+  let paths;
+  try { paths = JSON.parse(dl.final_paths || '[]'); } catch { paths = []; }
+  const library = resolve(getSettings().libraryDir) + sep;
+  let removed = 0;
+  for (const path of paths) {
+    const file = resolve(path);
+    if (!file.startsWith(library) || !existsSync(file)) continue;
+    rmSync(file, { force: true });
+    removed++;
+  }
+  db.prepare(`UPDATE downloads SET status = 'deleted', final_paths = '[]' WHERE id = ?`).run(id);
+  broadcast('download', { id, status: 'deleted', removed });
+  return { ok: true, removed };
 }
 
 // Resume unfinished downloads after a restart. webtorrent re-checks existing pieces

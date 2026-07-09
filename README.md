@@ -12,7 +12,7 @@ Browse the season's charts, tap an episode, and it lands in Plex renamed and org
 - Browse a show episode by episode - every episode with its title and air date (via AniZip), releases fetched on demand per episode with seeder-sorted targeted searches, so even a 15-year-old One Piece episode is one tap away.
 - Release rows show subs group, quality, size, seeders, and trusted flags; mixed numbering schemes (seasonal, cour continuation, absolute) resolve to the same episode.
 - One tap downloads into your library folder, renamed Plex-style (`Show/Season 01/Show - S01E01 [Group][1080p].mkv`), then triggers a partial Plex scan.
-- Watchlist: pin a subs group + quality per show; new episodes auto-download as they appear on nyaa (polls every 30 min, every 10 min around the AniList air time).
+- Watchlist: pin a subs group + quality per show; new episodes auto-download as they appear on nyaa (polls every 30 min, every 10 min around the AniList air time). Adding starts with future releases; use Catch up to queue every currently available matching episode.
 - Files are hardlinked into the library so the torrent seeds back with zero extra disk use (ratio/time limits configurable, including "Don't seed").
 - Keeps Plex alive (restarts it if it stops), can create the Plex "Anime" library itself, and starts at login.
 - Mobile-first PWA: open it on your phone and Add to Home Screen.

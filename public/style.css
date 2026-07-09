@@ -39,12 +39,19 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
 /* ---------- search ---------- */
 .searchbar { padding: 10px 16px 4px; position: sticky; top: 0; z-index: 5; background: linear-gradient(var(--bg) 75%, transparent); }
 .searchbar input {
-  width: 100%; font: 500 15px var(--sans); color: var(--text);
+  /* iOS Safari zooms focused inputs below 16px. Keep this app-like on phones. */
+  width: 100%; font: 500 16px var(--sans); color: var(--text);
   background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
   padding: 12px 14px; outline: none; -webkit-appearance: none;
 }
 .searchbar input:focus { border-color: rgba(232, 80, 58, .5); }
 .searchbar input::placeholder { color: var(--faint); }
+
+/* Mobile Safari zooms any focused text control whose computed type is under
+   16px. Keep every editable field at that threshold, not just search. */
+@media (max-width: 767px) {
+  input:not([type=checkbox]):not([type=radio]), select, textarea { font-size: 16px !important; }
+}
 
 /* ---------- browse chips ---------- */
 .chips-row { display: flex; gap: 6px; overflow-x: auto; padding: 8px 16px 2px; scrollbar-width: none; }
@@ -142,6 +149,8 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
   color: #fff; background: var(--shu); border: none; border-radius: 10px; padding: 12px; cursor: pointer;
 }
 .btn-watch.added { background: var(--panel-2); color: var(--ok); border: 1px solid rgba(70, 211, 146, .4); }
+.btn-catch { width: 100%; margin-top: 8px; font: 700 12px var(--sans); color: var(--shu); background: var(--shu-soft); border: 1px solid rgba(232,80,58,.4); border-radius: 10px; padding: 10px; cursor: pointer; }
+.btn-catch:disabled { opacity: .55; }
 
 .seg { display: flex; gap: 6px; margin: 18px 16px 4px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 4px; }
 .seg button { flex: 1; font: 700 12.5px var(--sans); color: var(--muted); background: none; border: none; border-radius: 7px; padding: 8px 0; cursor: pointer; }
@@ -162,15 +171,20 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
 .ep-row .chev { flex: none; color: var(--faint); font-size: 11px; }
 .ep-row[aria-expanded="true"] { border-color: rgba(232,80,58,.45); }
 .ep-panel { margin: 0 -16px; }
+.ep-detail { padding: 10px 16px 6px; border-bottom: 1px solid var(--line); background: rgba(27,34,52,.38); }
+.ep-detail .title { font-size: 13px; font-weight: 700; line-height: 1.45; }
+.ep-detail .hint { font: 400 10px var(--mono); color: var(--faint); margin-top: 3px; }
 .ep-panel .empty { padding: 20px 32px; }
 .ep-note { font: 400 11px var(--mono); color: var(--faint); text-align: center; padding: 10px; }
 .rel { display: flex; align-items: center; gap: 10px; padding: 9px 16px; }
 .rel + .rel { border-top: 1px solid var(--line); }
-.rel .fn { font-family: var(--mono); font-size: 11px; line-height: 1.45; overflow: hidden; flex: 1; }
-.rel .fn .file { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; color: var(--text); }
+.rel .fn { font-family: var(--mono); font-size: 11px; line-height: 1.45; min-width: 0; flex: 1; }
+.rel .fn .file { overflow-wrap: anywhere; display: block; color: var(--text); }
 .rel .meta { display: flex; gap: 10px; font-family: var(--mono); font-size: 10px; color: var(--faint); margin-top: 2px; flex-wrap: wrap; }
 .rel .meta .seeds { color: var(--gold); }
 .rel .meta .trusted { color: var(--ok); }
+.rel .meta .downloaded { color: var(--ok); }
+.rel .meta .quality { color: var(--text); }
 .grp { font-weight: 600; }
 .dl-btn {
   margin-left: auto; flex: none; width: 40px; height: 40px; border-radius: 50%;
@@ -178,6 +192,8 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
   font-size: 16px; cursor: pointer; display: grid; place-items: center;
 }
 .dl-btn.q { border-color: rgba(70,211,146,.5); background: rgba(70,211,146,.12); color: var(--ok); font-size: 13px; }
+.dl-btn.active { border-color: rgba(229,185,97,.5); background: rgba(229,185,97,.12); color: var(--gold); font-size: 12px; }
+.dl-btn.delete { border-color: rgba(232,80,58,.5); background: transparent; color: var(--faint); font-size: 14px; }
 .dl-btn:disabled { opacity: .5; }
 
 /* ---------- screens ---------- */
@@ -193,6 +209,7 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
 .wl-card .pins { display: flex; gap: 5px; flex-wrap: wrap; margin: 4px 0; }
 .pin { font-family: var(--mono); font-size: 9.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 5px; padding: 2px 6px; white-space: nowrap; }
 .pin.act { cursor: pointer; }
+.pin.catch { color: var(--shu); border-color: rgba(232,80,58,.45); font-weight: 600; }
 .wl-card .next { font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 3px; }
 .wl-card .next b { color: var(--shu); font-weight: 600; }
 .wl-card .next .done { color: var(--ok); }

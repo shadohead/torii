@@ -196,9 +196,12 @@ async function openDetail(id) {
   $('#detail').classList.add('open');
   document.body.style.overflow = 'hidden';
   try {
-    const { show, releases, episodes } = await api('/api/show/' + id);
+    const [{ show, releases, episodes }, downloads] = await Promise.all([
+      api('/api/show/' + id),
+      api('/api/downloads'),
+    ]);
     if (!$('#detail').classList.contains('open') || cur.id !== id) return;
-    cur = show; showCache.set(show.id, show); curReleases = releases;
+    cur = show; showCache.set(show.id, show); curReleases = releases; dlState = downloads;
     renderDetail(show, releases, episodes || []);
   } catch (err) {
     $('#d-body').innerHTML = `<div class="empty">nyaa.si unreachable: ${esc(err.message)}</div>`;
@@ -260,6 +263,7 @@ function renderDetail(m, releases, epMeta) {
         `<button class="pick ${q === curPick.q ? 'on' : ''}" data-q="${esc(q)}">${esc(q)}</button>`).join('')}</div>
       <button class="btn-watch ${watched ? 'added' : ''}" id="btn-watch">
         ${watched ? '✓ On watchlist · auto-downloading' : '★ Add to watchlist'}</button>
+      ${watched ? '<button class="btn-catch" id="btn-catch">⇣ Catch up to latest available</button>' : ''}
     </div>
     <div class="seg"><button class="${startBatch ? '' : 'on'}" data-seg="eps">Episodes</button><button class="${startBatch ? 'on' : ''}" data-seg="batch">Batches</button></div>
     <div id="rel-eps" ${startBatch ? 'style="display:none"' : ''}>${flat
@@ -274,6 +278,7 @@ function renderDetail(m, releases, epMeta) {
   $('#pick-group').onclick = (ev) => pickChip(ev, 'group', 'g');
   $('#pick-q').onclick = (ev) => pickChip(ev, 'q', 'q');
   $('#btn-watch').onclick = toggleWatch;
+  $('#btn-catch')?.addEventListener('click', catchUpFromDetail);
   $('.seg').onclick = (ev) => {
     const b = ev.target.closest('button'); if (!b) return;
     document.querySelectorAll('.seg button').forEach(x => x.classList.toggle('on', x === b));
@@ -281,7 +286,7 @@ function renderDetail(m, releases, epMeta) {
     $('#rel-batch').style.display = b.dataset.seg === 'batch' ? '' : 'none';
   };
   if (!flat) renderEpisodeList(m, entries, byEp);
-  for (const el of document.querySelectorAll('.rel .dl-btn')) el.onclick = () => downloadRelease(el);
+  bindReleaseActions($('#d-body'));
   paintPicks();
 }
 
@@ -329,12 +334,14 @@ function renderEpisodeList(m, entries, byEp) {
     if (!open || searched.has(ep)) return;
     searched.add(ep);
     const entry = entries.find(e => e.ep === ep);
+    const episodeDetail = `<div class="ep-detail"><div class="title">EP ${String(entry?.idx || ep).padStart(2, '0')} · ${esc(entry?.title || 'Episode ' + ep)}</div>
+      <div class="hint">${entry?.airdate ? esc(entry.airdate) + ' · ' : ''}Full release names and exact quality are below</div></div>`;
     const paint = () => {
       const rels = curReleases
         .filter(r => !r.parsed.batch && (r.parsed.episode === ep || (entry?.absolute != null && r.parsed.episode === entry.absolute)))
         .sort((a, b) => b.seeders - a.seeders).slice(0, 10);
-      panel.innerHTML = rels.map(relRow).join('');
-      for (const el of panel.querySelectorAll('.dl-btn')) el.onclick = () => downloadRelease(el);
+      panel.innerHTML = episodeDetail + rels.map(relRow).join('');
+      bindReleaseActions(panel);
       return rels.length;
     };
     const had = paint();
@@ -344,9 +351,9 @@ function renderEpisodeList(m, entries, byEp) {
       const known = new Set(curReleases.map(r => r.infoHash));
       curReleases.push(...releases.filter(r => r.infoHash && !known.has(r.infoHash)));
       const n = paint();
-      if (!n) panel.innerHTML = '<div class="empty">Nothing on nyaa for this episode - try a batch instead.</div>';
+      if (!n) panel.innerHTML = episodeDetail + '<div class="empty">Nothing on nyaa for this episode - try a batch instead.</div>';
     } catch {
-      if (!had) panel.innerHTML = '<div class="empty">nyaa search failed - try again.</div>';
+      if (!had) panel.innerHTML = episodeDetail + '<div class="empty">nyaa search failed - try again.</div>';
       else { const note = panel.querySelector('#ep-note'); if (note) note.remove(); }
     }
   };
@@ -368,10 +375,25 @@ function paintPicks() {
 function relRow(r) {
   const g = r.parsed.group;
   const age = r.pubDate ? Math.round((Date.now() - r.pubDate) / 86400e3) : null;
+  const saved = downloadForRelease(r);
+  const savedMeta = saved && ['done', 'seeding'].includes(saved.status) ? '<span class="downloaded">✓ saved</span>' : '';
+  const action = saved && ['done', 'seeding'].includes(saved.status)
+    ? `<button class="dl-btn delete" data-act="delete-file" data-download="${saved.id}" aria-label="Delete downloaded file" title="Delete downloaded file">⌫</button>`
+    : saved && ['queued', 'downloading', 'moving'].includes(saved.status)
+      ? `<button class="dl-btn active" disabled aria-label="Downloading">…</button>`
+      : `<button class="dl-btn" data-hash="${esc(r.infoHash || '')}" aria-label="Download">↓</button>`;
   return `<div class="rel"><div class="fn">
       <span class="file"><span class="grp" style="color:${groupColor(g)}">${g ? `[${esc(g)}]` : ''}</span>${esc(r.title.replace(`[${g}]`, ''))}</span>
-      <span class="meta"><span>${esc(r.sizeText || '')}</span><span class="seeds">▲ ${r.seeders}</span>${age != null ? `<span>${age === 0 ? 'today' : age + 'd ago'}</span>` : ''}${r.trusted ? '<span class="trusted">✓ trusted</span>' : ''}</span>
-    </div><button class="dl-btn" data-hash="${esc(r.infoHash || '')}" aria-label="Download">↓</button></div>`;
+      <span class="meta"><span class="quality">${esc(r.parsed.quality || 'quality unknown')}</span><span>${esc(r.sizeText || '')}</span><span class="seeds">▲ ${r.seeders}</span>${savedMeta}${age != null ? `<span>${age === 0 ? 'today' : age + 'd ago'}</span>` : ''}${r.trusted ? '<span class="trusted">✓ trusted</span>' : ''}</span>
+    </div>${action}</div>`;
+}
+function downloadForRelease(r) {
+  const hash = r.infoHash?.toLowerCase();
+  return hash ? dlState.find(d => d.info_hash?.toLowerCase() === hash) : null;
+}
+function bindReleaseActions(root) {
+  for (const el of root.querySelectorAll('.dl-btn[data-hash]')) el.onclick = () => downloadRelease(el);
+  for (const el of root.querySelectorAll('[data-act="delete-file"]')) el.onclick = () => deleteSavedRelease(el);
 }
 async function downloadRelease(btn) {
   if (btn.classList.contains('q')) return;
@@ -387,6 +409,22 @@ async function downloadRelease(btn) {
     else toast(res.reason || 'Could not start');
   } catch (err) { toast('Failed: ' + err.message); }
   btn.disabled = false;
+}
+async function deleteSavedRelease(btn) {
+  const id = Number(btn.dataset.download);
+  if (!id || !confirm('Delete this downloaded file from the Plex library?')) return;
+  const release = curReleases.find(r => downloadForRelease(r)?.id === id);
+  btn.disabled = true;
+  try {
+    const res = await api('/api/downloads/' + id + '/files', { method: 'DELETE' });
+    if (!res.ok) throw new Error(res.reason || 'Could not delete file');
+    toast(res.removed ? 'Deleted from Plex library' : 'File was already gone');
+    await refreshDownloads();
+    btn.className = 'dl-btn'; btn.dataset.hash = release?.infoHash || '';
+    btn.removeAttribute('data-act'); btn.removeAttribute('data-download'); btn.textContent = '↓'; btn.disabled = false;
+    btn.closest('.rel')?.querySelector('.downloaded')?.remove();
+    btn.setAttribute('aria-label', 'Download'); btn.onclick = () => downloadRelease(btn);
+  } catch (err) { btn.disabled = false; toast('Delete failed: ' + err.message); }
 }
 function closeDetail() { $('#detail').classList.remove('open'); document.body.style.overflow = ''; }
 window.closeDetail = closeDetail;
@@ -405,7 +443,22 @@ async function toggleWatch() {
     const b = $('#btn-watch');
     b.classList.toggle('added', !on);
     b.textContent = !on ? '✓ On watchlist · auto-downloading' : '★ Add to watchlist';
+    if (!on && !$('#btn-catch')) {
+      b.insertAdjacentHTML('afterend', '<button class="btn-catch" id="btn-catch">⇣ Catch up to latest available</button>');
+      $('#btn-catch').onclick = catchUpFromDetail;
+    }
+    if (on) $('#btn-catch')?.remove();
   } catch (err) { toast('Failed: ' + err.message); }
+}
+async function catchUpFromDetail() {
+  const b = $('#btn-catch'); if (!b) return;
+  b.disabled = true; b.textContent = 'Finding every available episode…';
+  try {
+    const res = await api(`/api/watchlist/${cur.id}/catch-up`, { method: 'POST' });
+    toast(res.grabbed ? `Queued ${res.grabbed} episode(s) to catch up` : 'Already caught up, or no matching releases found');
+    await Promise.all([refreshWatchlist(), refreshDownloads()]);
+  } catch (err) { toast('Catch-up failed: ' + err.message); }
+  b.disabled = false; b.textContent = '⇣ Catch up to latest available';
 }
 async function refreshWatchlist() {
   wlState = await api('/api/watchlist');
@@ -422,7 +475,7 @@ async function refreshWatchlist() {
     return `<div class="wl-card" data-id="${w.anilist_id}">
       <img src="${img(w.poster)}" alt="">
       <div class="mid"><h3>${esc(w.title)}</h3>
-        <div class="pins"><span class="pin" style="color:${groupColor(w.group_name)}">[${esc(w.group_name)}]</span><span class="pin">${esc(w.quality)}</span><span class="pin act" data-act="check">check now</span></div>
+        <div class="pins"><span class="pin" style="color:${groupColor(w.group_name)}">[${esc(w.group_name)}]</span><span class="pin">${esc(w.quality)}</span><span class="pin act" data-act="check">check new</span><span class="pin act catch" data-act="catch-up">catch up</span></div>
         <div class="next">${next} · have ≤ ${w.last_episode}</div></div>
       <div class="wl-side">
         <button class="wl-x" data-act="rm" aria-label="Remove">✕</button>
@@ -442,6 +495,12 @@ $('#wl-list').addEventListener('click', async (ev) => {
       ev.target.textContent = 'checking...';
       const res = await api(`/api/watchlist/${id}/check`, { method: 'POST' });
       toast(res.grabbed ? `Grabbed ${res.grabbed} new episode(s)` : 'No new episodes yet');
+      refreshWatchlist(); refreshDownloads();
+    }
+    else if (act === 'catch-up') {
+      ev.target.textContent = 'finding...';
+      const res = await api(`/api/watchlist/${id}/catch-up`, { method: 'POST' });
+      toast(res.grabbed ? `Queued ${res.grabbed} episode(s) to catch up` : 'Already caught up, or no matching releases found');
       refreshWatchlist(); refreshDownloads();
     }
     else openDetail(id);
@@ -481,7 +540,7 @@ function renderDownloads() {
       <div class="bar full"><i style="width:100%"></i></div>
       <div class="stats"><span class="ok">✓ in Plex${d.status === 'seeding' ? ' · seeding back' : ''}</span></div>
       ${paths[0] ? `<div class="path">${esc(paths[0])}</div>` : ''}
-      ${d.status === 'seeding' ? '<button class="dl-x" data-act="cancel" aria-label="Stop seeding">✕</button>' : ''}
+      <button class="dl-x" data-act="delete-files" aria-label="Delete downloaded files" title="Delete downloaded files">⌫</button>
     </div>`;
   }).join('') || `<div class="empty">Completed episodes appear here, renamed and scanned into Plex.</div>`;
   const badge = $('#dl-badge');
@@ -489,9 +548,14 @@ function renderDownloads() {
   badge.textContent = act.length;
 }
 $('#scr-dl').addEventListener('click', async (ev) => {
-  if (ev.target.dataset.act !== 'cancel') return;
+  const act = ev.target.dataset.act;
+  if (!['cancel', 'delete-files'].includes(act)) return;
   const id = Number(ev.target.closest('.dlrow').dataset.id);
-  await api('/api/downloads/' + id, { method: 'DELETE' });
+  if (act === 'delete-files') {
+    if (!confirm('Delete this downloaded file from the Plex library?')) return;
+    const res = await api('/api/downloads/' + id + '/files', { method: 'DELETE' });
+    toast(res.removed ? 'Deleted from Plex library' : 'File was already gone');
+  } else await api('/api/downloads/' + id, { method: 'DELETE' });
   refreshDownloads();
 });
 
