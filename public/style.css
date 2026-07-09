@@ -149,6 +149,21 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
 .ep-head { display: flex; align-items: baseline; gap: 8px; padding: 16px 16px 6px; }
 .ep-head h3 { margin: 0; font-size: 13px; font-weight: 900; }
 .ep-head span { font-family: var(--mono); font-size: 10px; color: var(--faint); }
+
+/* episode accordion */
+#ep-list { padding: 8px 16px 0; }
+.ep-row { display: flex; align-items: center; gap: 10px; padding: 11px 12px; margin-top: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px; cursor: pointer; user-select: none; }
+.ep-row .num { font: 700 13px var(--mono); color: var(--gold); flex: none; min-width: 26px; }
+.ep-row .ti { flex: 1; min-width: 0; font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ep-row .ti .sub { display: block; font: 400 10px var(--mono); color: var(--faint); margin-top: 1px; }
+.ep-row .cnt { flex: none; font: 700 10px var(--mono); color: var(--ok); background: rgba(70,211,146,.12);
+  border: 1px solid rgba(70,211,146,.35); border-radius: 999px; padding: 2px 7px; }
+.ep-row .chev { flex: none; color: var(--faint); font-size: 11px; }
+.ep-row[aria-expanded="true"] { border-color: rgba(232,80,58,.45); }
+.ep-panel { margin: 0 -16px; }
+.ep-panel .empty { padding: 20px 32px; }
+.ep-note { font: 400 11px var(--mono); color: var(--faint); text-align: center; padding: 10px; }
 .rel { display: flex; align-items: center; gap: 10px; padding: 9px 16px; }
 .rel + .rel { border-top: 1px solid var(--line); }
 .rel .fn { font-family: var(--mono); font-size: 11px; line-height: 1.45; overflow: hidden; flex: 1; }

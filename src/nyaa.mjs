@@ -71,8 +71,8 @@ export function sizeToBytes(s) {
   return Math.round(Number(m[1]) * mult);
 }
 
-async function fetchRss(q) {
-  const url = `${BASE}/?page=rss&q=${encodeURIComponent(q)}&c=1_2&f=0`;
+async function fetchRss(q, sort) {
+  const url = `${BASE}/?page=rss&q=${encodeURIComponent(q)}&c=1_2&f=0` + (sort ? `&s=${sort}&o=desc` : '');
   const res = await fetch(url, { headers: { 'User-Agent': 'torii/0.1 (personal plex fetcher)' }, signal: AbortSignal.timeout(15000) });
   if (!res.ok) throw new Error(`nyaa ${res.status}`);
   const xml = await res.text();
@@ -98,8 +98,8 @@ async function fetchRss(q) {
   return items;
 }
 
-export function searchNyaa(q, { ttl = 10 * 60e3 } = {}) {
-  return cached('nyaa:' + q.toLowerCase(), ttl, () => fetchRss(q));
+export function searchNyaa(q, { ttl = 10 * 60e3, sort = null } = {}) {
+  return cached(`nyaa:${sort || 'date'}:${q.toLowerCase()}`, ttl, () => fetchRss(q, sort));
 }
 
 // Strip season/part designators so nyaa search terms match how groups name releases
@@ -161,6 +161,39 @@ export async function releasesForShow(show) {
   const items = [...byHash.values()];
   items.sort((a, b) => (b.parsed.episode ?? -1) - (a.parsed.episode ?? -1) || b.seeders - a.seeders);
   return items;
+}
+
+// Targeted per-episode search (hayase-style). The general show pool only sees
+// nyaa's ~75 newest matches, which for older shows is all batches - so each
+// episode gets its own seeder-sorted queries with the number attached.
+// `numbers` holds every numbering the episode is known by (seasonal, cour
+// continuation, absolute), any of which may appear in filenames.
+export async function releasesForEpisode(show, numbers) {
+  const season = seasonFromShowTitle(show.romaji || show.english || '');
+  const pad = (n) => String(n).padStart(2, '0');
+  const titles = new Set([show.romaji, show.english].filter(Boolean).map(stripSeason));
+  // The franchise base is how groups actually name files ("Mushoku Tensei - 14",
+  // never the full subtitle), so it goes in every per-episode query.
+  const base = baseTitle(show.romaji || show.english || '');
+  if (base) titles.add(base);
+  if (base && season > 1) titles.add(`${base} S${season}`);
+  const queries = [];
+  for (const t of titles) for (const n of numbers) queries.push(`${t} ${pad(n)}`);
+  const settled = await Promise.allSettled(
+    queries.slice(0, 6).map(q => searchNyaa(q, { ttl: 60 * 60e3, sort: 'seeders' })));
+  const byHash = new Map();
+  for (const r of settled) {
+    if (r.status !== 'fulfilled') continue;
+    for (const item of r.value) {
+      if (!item.infoHash || byHash.has(item.infoHash)) continue;
+      const p = item.parsed;
+      if (p.batch || p.episode == null || !numbers.includes(p.episode)) continue;
+      if (p.season != null && p.season !== season) continue;
+      if (![...titles].some(t => titleMatches(item.title, t))) continue;
+      byHash.set(item.infoHash, item);
+    }
+  }
+  return [...byHash.values()].sort((a, b) => b.seeders - a.seeders);
 }
 
 // Loose token match so auto-download doesn't grab a different show that shares words.

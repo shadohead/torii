@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { getSettings, setSettings, db } from './db.mjs';
 import { POSTER_CACHE_DIR, PORT_OVERRIDE, VERSION } from './config.mjs';
 import * as anilist from './anilist.mjs';
+import * as anizip from './anizip.mjs';
 import * as nyaa from './nyaa.mjs';
 import * as plex from './plex.mjs';
 import * as torrents from './torrents.mjs';
@@ -58,9 +59,27 @@ const routes = [
     const season = nyaa.seasonFromShowTitle(show.romaji || show.english || '');
     // Episodes tab: only this season (unmarked releases pass - absolute numbering).
     // Batches stay unfiltered so older seasons of a franchise are easy to grab.
-    const releases = (await nyaa.releasesForShow(show)).filter(r =>
-      r.parsed.batch || r.parsed.episode == null || r.parsed.season == null || r.parsed.season === season);
-    return { show, season, releases };
+    const [releases, meta] = await Promise.all([
+      nyaa.releasesForShow(show).then(rs => rs.filter(r =>
+        r.parsed.batch || r.parsed.episode == null || r.parsed.season == null || r.parsed.season === season)),
+      anizip.episodeMeta(show.id).catch(() => ({ count: null, episodes: [] })),
+    ]);
+    return { show, season, releases, episodes: meta.episodes, episodeCount: meta.count };
+  }],
+
+  // Releases for one specific episode, searched on demand (the general pool
+  // only holds nyaa's newest rows, so older episodes need targeted queries).
+  ['GET', /^\/api\/show\/(\d+)\/episode\/(\d+(?:\.\d+)?)$/, async (m) => {
+    const show = await anilist.getAnime(m[1]);
+    const ep = Number(m[2]);
+    let numbers = [ep];
+    try {
+      const meta = await anizip.episodeMeta(show.id);
+      const e = meta.episodes.find(x => x.ep === ep) || meta.episodes.find(x => x.idx === ep);
+      if (e) numbers = [...new Set([e.ep, e.absolute].filter(n => n != null))];
+    } catch {}
+    const releases = await nyaa.releasesForEpisode(show, numbers);
+    return { ep, numbers, releases };
   }],
 
   ['GET', /^\/api\/nyaa$/, async (_m, url) => {

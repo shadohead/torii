@@ -9,7 +9,8 @@ Browse the season's charts, tap an episode, and it lands in Plex renamed and org
 ## What it does
 
 - Search and browse anime via AniList: posters, airing schedules, synopses, and MAL-style charts (this season, trending, top rated, all-time popular, upcoming, movies, any past season).
-- Pick releases per episode from nyaa.si, grouped by subs group and quality, with seeders and trusted flags.
+- Browse a show episode by episode - every episode with its title and air date (via AniZip), releases fetched on demand per episode with seeder-sorted targeted searches, so even a 15-year-old One Piece episode is one tap away.
+- Release rows show subs group, quality, size, seeders, and trusted flags; mixed numbering schemes (seasonal, cour continuation, absolute) resolve to the same episode.
 - One tap downloads into your library folder, renamed Plex-style (`Show/Season 01/Show - S01E01 [Group][1080p].mkv`), then triggers a partial Plex scan.
 - Watchlist: pin a subs group + quality per show; new episodes auto-download as they appear on nyaa (polls every 30 min, every 10 min around the AniList air time).
 - Files are hardlinked into the library so the torrent seeds back with zero extra disk use (ratio/time limits configurable, including "Don't seed").
@@ -73,6 +74,7 @@ Remote streaming is Plex's job, not Torii's - enable Plex Remote Access and use 
 ## Design notes
 
 - Node 22-era ESM, zero-framework HTTP server, two dependencies: `webtorrent` (pinned to v2 - v3 has a piece-accounting regression) and `better-sqlite3`.
+- Data sources: AniList (search, charts, schedules), AniZip (episode titles and numbering maps), nyaa.si RSS (releases); all responses cached in sqlite.
 - `scripts/patch-webtorrent.mjs` (postinstall) null-guards a piece/bitfield race in webtorrent.
 - Idle footprint ~0% CPU / ~75 MB RSS; the torrent client is created lazily and destroyed when no torrents are active. DHT off (nyaa is tracker-based), upload capped at 512 KB/s by default.
 - On macOS the service runs under launchd with `Nice 10` + `LowPriorityBackgroundIO`, so downloads never fight your foreground work.

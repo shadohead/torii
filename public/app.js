@@ -196,15 +196,15 @@ async function openDetail(id) {
   $('#detail').classList.add('open');
   document.body.style.overflow = 'hidden';
   try {
-    const { show, releases } = await api('/api/show/' + id);
+    const { show, releases, episodes } = await api('/api/show/' + id);
     if (!$('#detail').classList.contains('open') || cur.id !== id) return;
     cur = show; showCache.set(show.id, show); curReleases = releases;
-    renderDetail(show, releases);
+    renderDetail(show, releases, episodes || []);
   } catch (err) {
     $('#d-body').innerHTML = `<div class="empty">nyaa.si unreachable: ${esc(err.message)}</div>`;
   }
 }
-function renderDetail(m, releases) {
+function renderDetail(m, releases, epMeta) {
   $('#d-chips').innerHTML = [
     `<span class="chip">${esc(m.format || 'TV')} · ${m.year || ''}</span>`,
     m.score ? `<span class="chip"><span class="star">★</span> ${(m.score / 10).toFixed(1)}</span>` : '',
@@ -235,9 +235,20 @@ function renderDetail(m, releases) {
     if (!byEp.has(k)) byEp.set(k, []);
     byEp.get(k).push(r);
   }
-  const eps = [...byEp.keys()].sort((a, b) => b - a).slice(0, 8);
+
+  // One entry per episode: AniZip metadata when available, bare numbers otherwise.
+  // `ep` is the number release groups use in filenames; `idx` is AniList's index.
+  let entries = (epMeta || []).map(e => ({ ...e }));
+  if (!entries.length) {
+    const n = m.episodes || (m.nextEp ? m.nextEp.ep - 1 : 0) ||
+      Math.max(0, ...[...byEp.keys()].filter(Number.isInteger));
+    entries = Array.from({ length: n }, (_, i) => ({ idx: i + 1, ep: i + 1, absolute: null, title: null, airdate: null }));
+  }
+  if (m.nextEp) entries = entries.filter(e => e.idx < m.nextEp.ep);
+  entries.reverse(); // newest first
+  const flat = m.format === 'MOVIE' || entries.length <= 1;
   // Finished/older shows are usually best grabbed as a complete batch.
-  const startBatch = batches.length > 0 && (eps.length === 0 || m.status === 'FINISHED');
+  const startBatch = batches.length > 0 && (entries.length === 0 || m.status === 'FINISHED');
 
   $('#d-body').innerHTML = `
     ${m.synopsis ? `<p class="synopsis">${esc(m.synopsis)}</p>` : ''}
@@ -251,10 +262,10 @@ function renderDetail(m, releases) {
         ${watched ? '✓ On watchlist · auto-downloading' : '★ Add to watchlist'}</button>
     </div>
     <div class="seg"><button class="${startBatch ? '' : 'on'}" data-seg="eps">Episodes</button><button class="${startBatch ? 'on' : ''}" data-seg="batch">Batches</button></div>
-    <div id="rel-eps" ${startBatch ? 'style="display:none"' : ''}>${eps.map(e => `
-      <div class="ep-head"><h3>Episode ${e}</h3><span>${e === eps[0] ? 'latest' : ''}</span></div>
-      ${byEp.get(e).sort((a, b) => b.seeders - a.seeders).slice(0, 5).map(relRow).join('')}`).join('') ||
-      '<div class="empty">No individual episodes found on nyaa.</div>'}</div>
+    <div id="rel-eps" ${startBatch ? 'style="display:none"' : ''}>${flat
+      ? (singles.sort((a, b) => b.seeders - a.seeders).slice(0, 15).map(relRow).join('') ||
+         '<div class="empty">Nothing on nyaa yet.</div>')
+      : '<div id="ep-list"></div>'}</div>
     <div id="rel-batch" ${startBatch ? '' : 'style="display:none"'}>
       <div class="ep-head"><h3>Batches & packs</h3><span>${batches.length}</span></div>
       ${batches.sort((a, b) => b.seeders - a.seeders).slice(0, 12).map(relRow).join('') ||
@@ -269,8 +280,79 @@ function renderDetail(m, releases) {
     $('#rel-eps').style.display = b.dataset.seg === 'eps' ? '' : 'none';
     $('#rel-batch').style.display = b.dataset.seg === 'batch' ? '' : 'none';
   };
+  if (!flat) renderEpisodeList(m, entries, byEp);
   for (const el of document.querySelectorAll('.rel .dl-btn')) el.onclick = () => downloadRelease(el);
   paintPicks();
+}
+
+/* Episode accordion: every episode gets a row; releases load on demand because
+   nyaa's feed only carries the newest ~75 rows for any query. */
+const EP_PAGE = 30;
+function renderEpisodeList(m, entries, byEp) {
+  const list = $('#ep-list');
+  if (!entries.length) {
+    list.innerHTML = '<div class="empty">No episodes aired yet.</div>';
+    return;
+  }
+  let shown = 0;
+  const poolFor = (e) => byEp.get(e.ep) || (e.absolute != null && byEp.get(e.absolute)) || [];
+  const addRows = () => {
+    const more = entries.slice(shown, shown + EP_PAGE);
+    shown += more.length;
+    const btn = $('#ep-more');
+    if (btn) btn.remove();
+    list.insertAdjacentHTML('beforeend', more.map(e => `
+      <div class="ep-row" data-ep="${e.ep}" role="button" aria-expanded="false">
+        <span class="num">${String(e.ep).padStart(2, '0')}</span>
+        <span class="ti">${e.title ? esc(e.title) : 'Episode ' + e.ep}${e.airdate ? `<span class="sub">${esc(e.airdate)}</span>` : ''}</span>
+        ${poolFor(e).length ? `<span class="cnt">${poolFor(e).length}</span>` : ''}<span class="chev">▸</span>
+      </div>
+      <div class="ep-panel" data-panel="${e.ep}" hidden></div>`).join(''));
+    if (shown < entries.length) {
+      list.insertAdjacentHTML('beforeend',
+        `<button class="load-more" id="ep-more">Show earlier episodes (${entries.length - shown} left)</button>`);
+      $('#ep-more').onclick = addRows;
+    }
+  };
+  addRows();
+
+  const searched = new Set();
+  list.onclick = async (ev) => {
+    const row = ev.target.closest('.ep-row');
+    if (!row) return;
+    const ep = Number(row.dataset.ep);
+    const panel = list.querySelector(`.ep-panel[data-panel="${row.dataset.ep}"]`);
+    const open = panel.hidden;
+    panel.hidden = !open;
+    row.setAttribute('aria-expanded', open);
+    row.querySelector('.chev').textContent = open ? '▾' : '▸';
+    if (!open || searched.has(ep)) return;
+    searched.add(ep);
+    const entry = entries.find(e => e.ep === ep);
+    const paint = () => {
+      const rels = curReleases
+        .filter(r => !r.parsed.batch && (r.parsed.episode === ep || (entry?.absolute != null && r.parsed.episode === entry.absolute)))
+        .sort((a, b) => b.seeders - a.seeders).slice(0, 10);
+      panel.innerHTML = rels.map(relRow).join('');
+      for (const el of panel.querySelectorAll('.dl-btn')) el.onclick = () => downloadRelease(el);
+      return rels.length;
+    };
+    const had = paint();
+    panel.insertAdjacentHTML('beforeend', '<div class="ep-note" id="ep-note">searching nyaa…</div>');
+    try {
+      const { releases } = await api(`/api/show/${m.id}/episode/${ep}`);
+      const known = new Set(curReleases.map(r => r.infoHash));
+      curReleases.push(...releases.filter(r => r.infoHash && !known.has(r.infoHash)));
+      const n = paint();
+      if (!n) panel.innerHTML = '<div class="empty">Nothing on nyaa for this episode - try a batch instead.</div>';
+    } catch {
+      if (!had) panel.innerHTML = '<div class="empty">nyaa search failed - try again.</div>';
+      else { const note = panel.querySelector('#ep-note'); if (note) note.remove(); }
+    }
+  };
+
+  // The newest episode is what you came for - open it.
+  list.querySelector('.ep-row')?.click();
 }
 function pickChip(ev, key, attr) {
   const b = ev.target.closest('.pick'); if (!b) return;
