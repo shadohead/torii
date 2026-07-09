@@ -1,0 +1,13 @@
+{
+  "name": "Torii",
+  "short_name": "Torii",
+  "description": "Anime from nyaa.si into Plex",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0A0D15",
+  "theme_color": "#0A0D15",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png" }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "name": "torii",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Anime torrents from nyaa.si straight into your Plex library, from any device on your LAN",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shadohead/torii.git"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.mjs",
+    "setup": "bash scripts/setup.sh",
+    "app": "bash scripts/make-app.sh",
+    "service": "node scripts/service.mjs",
+    "postinstall": "node scripts/patch-webtorrent.mjs"
+  },
+  "dependencies": {
+    "better-sqlite3": "^12.11.1",
+    "webtorrent": "^2.8.5"
+  }
+}

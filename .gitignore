@@ -1,0 +1,4 @@
+node_modules/
+.lavish/
+*.log
+.DS_Store
