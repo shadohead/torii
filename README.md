@@ -27,6 +27,9 @@ curl -fsSL https://raw.githubusercontent.com/shadohead/torii/main/install.sh | b
 
 That fetches the source to `~/.torii/app`, provisions a private Node.js runtime under `~/.torii/node` if your system has none (no Homebrew, no sudo), installs dependencies, registers the background service (starts at login), builds a double-clickable `Torii.app`, and opens the UI.
 It also prints the URL to open on your phone.
+On macOS, Torii advertises itself over Bonjour at **http://torii.local**, so the
+same memorable address works on the Mac, iPhone, and other devices on the local
+network. The numbered LAN URL remains available as a fallback.
 
 From a git checkout instead: `npm run setup` does the same for the checkout (or `bash scripts/setup.sh` if you don't have Node yet).
 Prefer minimal? `npm install && npm start` runs it in the foreground with no system integration.
