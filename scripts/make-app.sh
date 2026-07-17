@@ -53,7 +53,16 @@ if ! curl -s -m 1 "http://127.0.0.1:$PORT/api/status" >/dev/null 2>&1; then
     sleep 0.3
   done
 fi
-[ -n "\${TORII_NO_OPEN:-}" ] || open "http://127.0.0.1:$PORT"
+URL="http://torii.local"
+for _ in \$(seq 1 20); do
+  curl --noproxy '*' -fs -m 1 "\$URL/api/status" >/dev/null 2>&1 && break
+  sleep 0.2
+done
+if ! curl --noproxy '*' -fs -m 1 "\$URL/api/status" >/dev/null 2>&1; then
+  URL="http://torii.local:$PORT"
+  curl --noproxy '*' -fs -m 1 "\$URL/api/status" >/dev/null 2>&1 || URL="http://127.0.0.1:$PORT"
+fi
+[ -n "\${TORII_NO_OPEN:-}" ] || open "\$URL"
 LAUNCHER
 chmod +x "$APP/Contents/MacOS/Torii"
 

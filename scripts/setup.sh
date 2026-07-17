@@ -69,10 +69,22 @@ curl -s -m 2 "http://127.0.0.1:$PORT/api/status" >/dev/null 2>&1 || {
 }
 
 LAN_IP="$(node -p 'Object.values(require("os").networkInterfaces()).flat().find(i => i && !i.internal && i.family === "IPv4")?.address || "localhost"')"
+FRIENDLY_URL="http://torii.local"
+if [ "$(uname)" = "Darwin" ]; then
+  for _ in $(seq 1 20); do
+    curl --noproxy '*' -fs -m 1 "$FRIENDLY_URL/api/status" >/dev/null 2>&1 && break
+    sleep 0.2
+  done
+fi
+if ! curl --noproxy '*' -fs -m 1 "$FRIENDLY_URL/api/status" >/dev/null 2>&1; then
+  FRIENDLY_URL="http://torii.local:$PORT"
+  curl --noproxy '*' -fs -m 1 "$FRIENDLY_URL/api/status" >/dev/null 2>&1 || FRIENDLY_URL="http://localhost:$PORT"
+fi
 echo
 echo "Torii is running:"
+echo "  Mac + phone:    $FRIENDLY_URL   (same wifi; Share → Add to Home Screen)"
 echo "  this machine:  http://localhost:$PORT"
-echo "  your phone:    http://$LAN_IP:$PORT   (same wifi; Share → Add to Home Screen)"
+echo "  LAN fallback:  http://$LAN_IP:$PORT"
 echo
 echo "Next: open Setup in the UI to pick your library folder and check the Plex connection."
-[ "$NO_OPEN" -eq 1 ] || { command -v open >/dev/null && open "http://localhost:$PORT" || true; }
+[ "$NO_OPEN" -eq 1 ] || { command -v open >/dev/null && open "$FRIENDLY_URL" || true; }

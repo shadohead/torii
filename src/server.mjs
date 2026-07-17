@@ -16,6 +16,7 @@ import * as system from './system.mjs';
 import { addClient } from './sse.mjs';
 import { freeBytes, diskSpace, incomingDir } from './organize.mjs';
 import { log } from './log.mjs';
+import { LOCAL_HOSTNAME, publishLocalHostname } from './mdns.mjs';
 
 const PUBLIC_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public');
 const MIME = {
@@ -220,7 +221,7 @@ function serveStatic(res, pathname) {
 }
 
 // ---------- server ----------
-const server = http.createServer(async (req, res) => {
+const handleRequest = async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
     if (url.pathname === '/api/events') return addClient(res);
@@ -239,7 +240,9 @@ const server = http.createServer(async (req, res) => {
     log.error(req.method, url.pathname, String(err));
     return json(res, 500, { error: String(err.message || err) });
   }
-});
+};
+
+const server = http.createServer(handleRequest);
 
 const settings = getSettings();
 const port = PORT_OVERRIDE || settings.port;
@@ -256,14 +259,39 @@ server.on('error', (err) => {
   throw err;
 });
 
-server.listen(port, '0.0.0.0', () => {
+let friendlyServer = null;
+let stopLocalHostname = () => {};
+
+function startTorii(advertisedPort) {
   const lan = Object.values(networkInterfaces()).flat().find(i => i && !i.internal && i.family === 'IPv4');
   log(`torii listening on http://${lan?.address || 'localhost'}:${port}`);
+  stopLocalHostname = publishLocalHostname(advertisedPort);
   torrents.resumeUnfinished();
   watchlist.startScheduler();
   plex.startWatchdog();
   plex.discoverToken().then(t => log(t ? 'plex token: ok' : 'plex token: not found (set in Setup for instant scans)'));
   plex.ensureAnimeSection().then(r => log('plex anime library:', JSON.stringify(r))).catch(() => {});
+}
+
+server.listen(port, '0.0.0.0', () => {
+  if (port === 80 || process.platform !== 'darwin') return startTorii(port);
+
+  // macOS permits user processes to bind port 80. Serving the same app there
+  // makes the friendly URL exactly http://torii.local, while the configured
+  // port remains available for compatibility and health checks.
+  friendlyServer = http.createServer(handleRequest);
+  const onFriendlyListenError = (err) => {
+    log.warn(`friendly port 80 unavailable (${err.code || err.message}); use http://${LOCAL_HOSTNAME}:${port}`);
+    friendlyServer = null;
+    startTorii(port);
+  };
+  friendlyServer.once('error', onFriendlyListenError);
+  friendlyServer.listen(80, '0.0.0.0', () => {
+    friendlyServer.off('error', onFriendlyListenError);
+    friendlyServer.on('error', (err) => log.warn(`friendly listener error: ${err.code || err.message}`));
+    log(`friendly listener: http://${LOCAL_HOSTNAME}`);
+    startTorii(80);
+  });
 });
 
 // Safety net: webtorrent internals occasionally throw from stream event handlers.
@@ -274,7 +302,11 @@ process.on('unhandledRejection', (err) => log.error('unhandledRejection', String
 for (const sig of ['SIGINT', 'SIGTERM']) {
   process.on(sig, () => {
     log('shutting down on', sig);
+    stopLocalHostname();
+    friendlyServer?.close();
     server.close();
     setTimeout(() => process.exit(0), 800);
   });
 }
+
+process.on('exit', () => stopLocalHostname());
