@@ -378,7 +378,8 @@ function relRow(r) {
   const saved = downloadForRelease(r);
   const savedMeta = saved && ['done', 'seeding'].includes(saved.status) ? '<span class="downloaded">✓ saved</span>' : '';
   const action = saved && ['done', 'seeding'].includes(saved.status)
-    ? `<button class="dl-btn delete" data-act="delete-file" data-download="${saved.id}" aria-label="Delete downloaded file" title="Delete downloaded file">⌫</button>`
+    ? `<span class="rel-actions">${deviceDownloadControl(saved, 'icon')}
+        <button class="dl-btn delete" data-act="delete-file" data-download="${saved.id}" aria-label="Delete downloaded file" title="Delete downloaded file">⌫</button></span>`
     : saved && ['queued', 'downloading', 'moving'].includes(saved.status)
       ? `<button class="dl-btn active" disabled aria-label="Downloading">…</button>`
       : `<button class="dl-btn" data-hash="${esc(r.infoHash || '')}" aria-label="Download">↓</button>`;
@@ -386,6 +387,28 @@ function relRow(r) {
       <span class="file"><span class="grp" style="color:${groupColor(g)}">${g ? `[${esc(g)}]` : ''}</span>${esc(r.title.replace(`[${g}]`, ''))}</span>
       <span class="meta"><span class="quality">${esc(r.parsed.quality || 'quality unknown')}</span><span>${esc(r.sizeText || '')}</span><span class="seeds">▲ ${r.seeders}</span>${savedMeta}${age != null ? `<span>${age === 0 ? 'today' : age + 'd ago'}</span>` : ''}${r.trusted ? '<span class="trusted">✓ trusted</span>' : ''}</span>
     </div>${action}</div>`;
+}
+function finalPaths(d) {
+  try {
+    const paths = JSON.parse(d.final_paths || '[]');
+    return Array.isArray(paths) ? paths : [];
+  } catch { return []; }
+}
+function pathName(path) { return String(path).split('/').pop() || 'media file'; }
+function deviceDownloadControl(d, mode = 'full') {
+  const paths = finalPaths(d);
+  if (!paths.length) return '';
+  const label = mode === 'icon' ? '⇩' : '↓ Download to this device';
+  if (paths.length === 1) {
+    return `<a class="${mode === 'icon' ? 'dl-btn local' : 'device-download'}" href="/api/downloads/${d.id}/files/0"
+      download aria-label="Download to this device" title="Download to this device">${label}</a>`;
+  }
+  return `<details class="device-menu ${mode === 'icon' ? 'compact' : ''}">
+    <summary class="${mode === 'icon' ? 'dl-btn local' : 'device-download'}" aria-label="Download files to this device"
+      title="Download files to this device">${label}${mode === 'full' ? ` (${paths.length} files)` : ''}</summary>
+    <div class="device-menu-items">${paths.map((path, i) =>
+      `<a href="/api/downloads/${d.id}/files/${i}" download>↓ ${esc(pathName(path))}</a>`).join('')}</div>
+  </details>`;
 }
 function downloadForRelease(r) {
   const hash = r.infoHash?.toLowerCase();
@@ -420,10 +443,14 @@ async function deleteSavedRelease(btn) {
     if (!res.ok) throw new Error(res.reason || 'Could not delete file');
     toast(res.removed ? 'Deleted from Plex library' : 'File was already gone');
     await refreshDownloads();
-    btn.className = 'dl-btn'; btn.dataset.hash = release?.infoHash || '';
-    btn.removeAttribute('data-act'); btn.removeAttribute('data-download'); btn.textContent = '↓'; btn.disabled = false;
-    btn.closest('.rel')?.querySelector('.downloaded')?.remove();
-    btn.setAttribute('aria-label', 'Download'); btn.onclick = () => downloadRelease(btn);
+    const row = btn.closest('.rel');
+    row?.querySelector('.downloaded')?.remove();
+    const fresh = document.createElement('button');
+    fresh.className = 'dl-btn'; fresh.dataset.hash = release?.infoHash || '';
+    fresh.textContent = '↓'; fresh.setAttribute('aria-label', 'Download');
+    fresh.onclick = () => downloadRelease(fresh);
+    const actions = btn.closest('.rel-actions');
+    if (actions) actions.replaceWith(fresh); else btn.replaceWith(fresh);
   } catch (err) { btn.disabled = false; toast('Delete failed: ' + err.message); }
 }
 function closeDetail() { $('#detail').classList.remove('open'); document.body.style.overflow = ''; }
@@ -534,12 +561,13 @@ function renderDownloads() {
       <button class="dl-x" data-act="cancel" aria-label="Cancel">✕</button>
     </div>`).join('') || `<div class="empty">Nothing downloading.</div>`;
   $('#dl-done').innerHTML = done.slice(0, 30).map(d => {
-    const paths = JSON.parse(d.final_paths || '[]');
+    const paths = finalPaths(d);
     return `<div class="dlrow" data-id="${d.id}">
       <div class="fn">${esc(d.release_title)}</div>
       <div class="bar full"><i style="width:100%"></i></div>
       <div class="stats"><span class="ok">✓ in Plex${d.status === 'seeding' ? ' · seeding back' : ''}</span></div>
       ${paths[0] ? `<div class="path">${esc(paths[0])}</div>` : ''}
+      ${deviceDownloadControl(d)}
       <button class="dl-x" data-act="delete-files" aria-label="Delete downloaded files" title="Delete downloaded files">⌫</button>
     </div>`;
   }).join('') || `<div class="empty">Completed episodes appear here, renamed and scanned into Plex.</div>`;

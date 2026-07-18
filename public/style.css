@@ -195,6 +195,26 @@ header.top { display: flex; align-items: center; gap: 10px; padding: calc(18px +
 .dl-btn.active { border-color: rgba(229,185,97,.5); background: rgba(229,185,97,.12); color: var(--gold); font-size: 12px; }
 .dl-btn.delete { border-color: rgba(232,80,58,.5); background: transparent; color: var(--faint); font-size: 14px; }
 .dl-btn:disabled { opacity: .5; }
+.rel-actions { margin-left: auto; flex: none; display: flex; align-items: center; gap: 7px; }
+.rel-actions .dl-btn { margin-left: 0; }
+.dl-btn.local { text-decoration: none; border-color: rgba(127,180,250,.5); background: rgba(127,180,250,.12); color: #7FB4FA; }
+.device-download {
+  display: inline-flex; align-items: center; width: fit-content; margin-top: 9px; padding: 7px 10px;
+  border: 1px solid rgba(127,180,250,.4); border-radius: 8px; background: rgba(127,180,250,.10);
+  color: #7FB4FA; font: 600 10.5px var(--mono); text-decoration: none; cursor: pointer;
+}
+.device-menu { position: relative; width: fit-content; }
+.device-menu summary { list-style: none; }
+.device-menu summary::-webkit-details-marker { display: none; }
+.device-menu.compact { flex: none; }
+.device-menu.compact .device-menu-items { right: 0; left: auto; min-width: min(360px, calc(100vw - 32px)); }
+.device-menu-items {
+  position: absolute; z-index: 8; left: 0; top: calc(100% + 5px); min-width: min(420px, calc(100vw - 32px));
+  max-height: 240px; overflow-y: auto; padding: 5px; background: var(--panel-2);
+  border: 1px solid rgba(127,180,250,.35); border-radius: 10px; box-shadow: 0 12px 28px rgba(0,0,0,.4);
+}
+.device-menu-items a { display: block; padding: 8px; color: var(--text); font: 500 10px var(--mono); text-decoration: none; overflow-wrap: anywhere; border-radius: 6px; }
+.device-menu-items a:hover { background: var(--panel); color: #7FB4FA; }
 
 /* ---------- screens ---------- */
 .screen { display: none; }

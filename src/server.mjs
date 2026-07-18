@@ -17,6 +17,7 @@ import { addClient } from './sse.mjs';
 import { freeBytes, diskSpace, incomingDir } from './organize.mjs';
 import { log } from './log.mjs';
 import { LOCAL_HOSTNAME, publishLocalHostname } from './mdns.mjs';
+import { serveAttachment } from './http-download.mjs';
 
 const PUBLIC_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public');
 const MIME = {
@@ -30,6 +31,12 @@ const json = (res, code, body) => {
   res.writeHead(code, { 'Content-Type': 'application/json; charset=utf-8' });
   res.end(buf);
 };
+
+function serveDownloadFile(req, res, id, index) {
+  const file = torrents.getDownloadFile(id, index);
+  if (!file) return json(res, 404, { error: 'downloaded file not found' });
+  return serveAttachment(req, res, file, (err) => log.error('device download', file.path, String(err)));
+}
 
 async function readBody(req) {
   const chunks = [];
@@ -226,6 +233,10 @@ const handleRequest = async (req, res) => {
   try {
     if (url.pathname === '/api/events') return addClient(res);
     if (url.pathname === '/img') return servePoster(res, url);
+    const fileMatch = url.pathname.match(/^\/api\/downloads\/(\d+)\/files\/(\d+)$/);
+    if (fileMatch && ['GET', 'HEAD'].includes(req.method)) {
+      return serveDownloadFile(req, res, Number(fileMatch[1]), Number(fileMatch[2]));
+    }
     for (const [method, re, handler] of routes) {
       if (req.method !== method) continue;
       const m = url.pathname.match(re);

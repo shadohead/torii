@@ -1,5 +1,5 @@
-import { existsSync, rmSync } from 'node:fs';
-import { join, resolve, sep } from 'node:path';
+import { existsSync, realpathSync, rmSync, statSync } from 'node:fs';
+import { basename, join, resolve, sep } from 'node:path';
 import { db, getSettings } from './db.mjs';
 import { incomingDir, organizeDownload, cleanupIncoming, freeBytes } from './organize.mjs';
 import { scanLibrary } from './plex.mjs';
@@ -7,6 +7,7 @@ import { broadcast } from './sse.mjs';
 import { log } from './log.mjs';
 
 let client = null;           // lazy - only exists while torrents are active
+let clientPromise = null;    // coalesce simultaneous attaches during startup/resume
 const active = new Map();    // infoHash -> { torrent, dl, seedTimer }
 
 const insertDl = db.prepare(`
@@ -21,19 +22,28 @@ const getById = db.prepare('SELECT * FROM downloads WHERE id = ?');
 
 async function getClient() {
   if (client) return client;
-  const { default: WebTorrent } = await import('webtorrent');
-  const s = getSettings();
-  client = new WebTorrent({
-    maxConns: s.maxConns,
-    dht: false,   // nyaa torrents are tracker-based; DHT off keeps idle network/CPU low
-    lsd: false,
-    utp: false,
-    downloadLimit: s.downloadLimitKBs > 0 ? s.downloadLimitKBs * 1024 : -1,
-    uploadLimit: s.uploadLimitKBs > 0 ? s.uploadLimitKBs * 1024 : -1,
-  });
-  client.on('error', (err) => log.error('webtorrent client', String(err)));
-  log('torrent client started');
-  return client;
+  if (!clientPromise) {
+    clientPromise = (async () => {
+      const { default: WebTorrent } = await import('webtorrent');
+      const s = getSettings();
+      client = new WebTorrent({
+        maxConns: s.maxConns,
+        dht: false,   // nyaa torrents are tracker-based; DHT off keeps idle network/CPU low
+        lsd: false,
+        utp: false,
+        downloadLimit: s.downloadLimitKBs > 0 ? s.downloadLimitKBs * 1024 : -1,
+        uploadLimit: s.uploadLimitKBs > 0 ? s.uploadLimitKBs * 1024 : -1,
+      });
+      client.on('error', (err) => log.error('webtorrent client', String(err)));
+      log('torrent client started');
+      return client;
+    })();
+  }
+  try {
+    return await clientPromise;
+  } finally {
+    clientPromise = null;
+  }
 }
 
 function maybeShutdownClient() {
@@ -65,6 +75,35 @@ export function listDownloads() {
     }
   }
   return rows;
+}
+
+// Resolve one completed media file for an HTTP download. Both the recorded path
+// and its real path must stay inside the configured library so this endpoint can
+// never become an arbitrary-file reader if a database row is edited or a library
+// entry is replaced with a symlink.
+export function getDownloadFile(id, index) {
+  const dl = getById.get(id);
+  if (!dl || !['seeding', 'done'].includes(dl.status)) return null;
+
+  let paths;
+  try { paths = JSON.parse(dl.final_paths || '[]'); } catch { return null; }
+  if (!Array.isArray(paths) || !Number.isSafeInteger(index) || index < 0 || index >= paths.length) return null;
+
+  const library = resolve(getSettings().libraryDir);
+  const file = resolve(String(paths[index]));
+  if (file !== library && !file.startsWith(library + sep)) return null;
+  if (!existsSync(file)) return null;
+
+  try {
+    const realLibrary = realpathSync(library);
+    const realFile = realpathSync(file);
+    if (realFile !== realLibrary && !realFile.startsWith(realLibrary + sep)) return null;
+    const info = statSync(realFile);
+    if (!info.isFile()) return null;
+    return { path: realFile, name: basename(file), size: info.size };
+  } catch {
+    return null;
+  }
 }
 
 // Enqueue a nyaa release. meta: { title, torrentUrl, infoHash, size, parsed, showTitle, anilistId, season, source }
