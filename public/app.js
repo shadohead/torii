@@ -84,7 +84,9 @@ const CHART_LIST = [
   { key: 'movies', label: 'Movies', title: () => 'Top movies', jp: '映画' },
   { key: 'seasons', label: 'Past Seasons', title: () => browse.seasonLabel, jp: '季節' },
 ];
-const browse = { key: 'home', page: 1, items: [], hasNext: false, season: null, year: null, seasonLabel: '', sort: 'season', loading: false };
+const PAGE_SIZE = 24;
+const browse = { key: 'home', page: 1, items: [], carry: [], shown: 0, carryShown: 0, hasNext: false,
+  season: null, year: null, seasonLabel: '', sort: 'season', loading: false };
 
 function renderChips() {
   $('#chart-chips').innerHTML = CHART_LIST.map(c =>
@@ -120,7 +122,7 @@ $('#season-chips').addEventListener('click', (ev) => {
   resetBrowse();
 });
 function resetBrowse() {
-  browse.page = 1; browse.items = [];
+  browse.page = 1; browse.items = []; browse.carry = []; browse.shown = 0; browse.carryShown = 0;
   renderChips();
   syncHomeVisibility();
   if (browse.key !== 'home') loadBrowse();
@@ -131,28 +133,65 @@ function browseParams() {
   if (browse.key === 'seasons') return { chart: browse.sort, season: browse.season, year: browse.year };
   return { chart: browse.key };
 }
+// Seasonal charts arrive whole, so paging through them is a local slice; the
+// open-ended charts keep fetching a page at a time. Both grow `shown` by
+// PAGE_SIZE per tap, and the button spells out how many entries are still
+// hidden whenever the total is known - a bare "Load more" reads like a
+// footnote, which is how the tail of a season went unnoticed.
+function renderBrowse() {
+  const shown = browse.items.slice(0, browse.shown);
+  $('#grid-browse').innerHTML = shown.map((m, i) => cardHTML(m, i + 1)).join('') ||
+    '<div class="empty" style="grid-column:1/-1">Nothing here.</div>';
+  bindCards($('#grid-browse'), shown);
+  const rest = browse.items.length - browse.shown;
+  $('#browse-more').style.display = rest > 0 || browse.hasNext ? '' : 'none';
+  $('#browse-more').textContent = browse.hasNext ? 'Load more' : `Load more (${rest})`;
+
+  $('#browse-carry').style.display = browse.carry.length ? '' : 'none';
+  const carry = browse.carry.slice(0, browse.carryShown);
+  $('#grid-carry').innerHTML = carry.map(m => cardHTML(m)).join('');
+  bindCards($('#grid-carry'), carry);
+  const carryRest = browse.carry.length - browse.carryShown;
+  $('#carry-more').style.display = carryRest > 0 ? '' : 'none';
+  $('#carry-more').textContent = `Load more (${carryRest})`;
+}
 async function loadBrowse() {
   if (browse.loading) return;
   browse.loading = true;
   const def = CHART_LIST.find(c => c.key === browse.key);
   $('#browse-title').textContent = def.title ? def.title() : '';
   $('#browse-sub').textContent = def.jp || '';
-  if (browse.page === 1) $('#grid-browse').innerHTML = '<div class="empty" style="grid-column:1/-1">Loading...</div>';
+  if (browse.page === 1) {
+    $('#grid-browse').innerHTML = '<div class="empty" style="grid-column:1/-1">Loading...</div>';
+    $('#browse-carry').style.display = 'none';
+  }
   try {
     const p = new URLSearchParams({ ...browseParams(), page: browse.page });
     const res = await api('/api/browse?' + p);
     browse.items.push(...res.items);
+    browse.carry = res.carryover || [];
     browse.hasNext = res.hasNext;
-    $('#grid-browse').innerHTML = browse.items.map((m, i) => cardHTML(m, i + 1)).join('') ||
-      '<div class="empty" style="grid-column:1/-1">Nothing here.</div>';
-    bindCards($('#grid-browse'), browse.items);
-    $('#browse-more').style.display = browse.hasNext ? '' : 'none';
+    browse.shown = Math.min(browse.items.length, browse.shown + PAGE_SIZE);
+    browse.carryShown = Math.min(browse.carry.length, PAGE_SIZE);
+    renderBrowse();
   } catch (err) {
     $('#grid-browse').innerHTML = `<div class="empty" style="grid-column:1/-1">Failed: ${esc(err.message)}</div>`;
   }
   browse.loading = false;
 }
-$('#browse-more').onclick = () => { browse.page++; loadBrowse(); };
+$('#browse-more').onclick = () => {
+  if (browse.shown < browse.items.length) {
+    browse.shown = Math.min(browse.items.length, browse.shown + PAGE_SIZE);
+    renderBrowse();
+  } else if (browse.hasNext) {
+    browse.page++;
+    loadBrowse();
+  }
+};
+$('#carry-more').onclick = () => {
+  browse.carryShown = Math.min(browse.carry.length, browse.carryShown + PAGE_SIZE);
+  renderBrowse();
+};
 function syncHomeVisibility() {
   const q = $('#q').value.trim();
   $('#home-results').style.display = q ? '' : 'none';

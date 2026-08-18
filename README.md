@@ -9,6 +9,7 @@ Browse the season's charts, tap an episode, and it lands in Plex renamed and org
 ## What it does
 
 - Search and browse anime via AniList: posters, airing schedules, synopses, and MAL-style charts (this season, trending, top rated, all-time popular, upcoming, movies, any past season).
+- Season pages list the whole season at once, premieres ranked first and a Continuing section underneath for the split-cour sequels and long-runners that carried in from earlier seasons.
 - Browse a show episode by episode - every episode with its title and air date (via AniZip), releases fetched on demand per episode with seeder-sorted targeted searches, so even a 15-year-old One Piece episode is one tap away.
 - Release rows show subs group, quality, size, seeders, and trusted flags; mixed numbering schemes (seasonal, cour continuation, absolute) resolve to the same episode.
 - One tap downloads into your library folder, renamed Plex-style (`Show/Season 01/Show - S01E01 [Group][1080p].mkv`), then triggers a partial Plex scan.
