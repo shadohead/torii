@@ -14,6 +14,7 @@
   },
   "scripts": {
     "start": "node src/server.mjs",
+    "test": "node --test",
     "setup": "bash scripts/setup.sh",
     "uninstall": "bash uninstall.sh",
     "app": "bash scripts/make-app.sh",

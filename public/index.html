@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Torii</title>
 <meta name="theme-color" content="#0A0D15">
+<meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Torii">
@@ -14,7 +15,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@500;700;900&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css?v=7">
+<link rel="stylesheet" href="/style.css?v=8">
 </head>
 <body>
 <div class="app">
@@ -43,6 +44,11 @@
       <div class="sec-title"><h2 id="browse-title"></h2><span class="jp" id="browse-sub"></span></div>
       <div class="grid" id="grid-browse"></div>
       <button class="load-more" id="browse-more" style="display:none">Load more</button>
+      <div id="browse-carry" style="display:none">
+        <div class="sec-title"><h2>Continuing</h2><span class="jp">継続中 · started in an earlier season</span></div>
+        <div class="grid" id="grid-carry"></div>
+        <button class="load-more" id="carry-more" style="display:none">Load more</button>
+      </div>
     </div>
     <div id="home-results" style="display:none">
       <div class="sec-title"><h2>Results</h2><span class="jp" id="res-count"></span></div>
@@ -58,7 +64,7 @@
   <div class="screen" id="scr-dl">
     <div class="sec-title"><h2>Active</h2><span class="jp" id="dl-active-count"></span></div>
     <div id="dl-active"></div>
-    <div class="sec-title"><h2>Completed</h2><span class="jp">in Plex</span></div>
+    <div class="sec-title"><h2>Completed</h2><span class="jp">in Plex · downloadable here</span></div>
     <div id="dl-done"></div>
   </div>
 
@@ -86,6 +92,6 @@
 </div></nav>
 
 <div class="toast" id="toast"></div>
-<script src="/app.js?v=6"></script>
+<script src="/app.js?v=8"></script>
 </body>
 </html>

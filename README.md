@@ -9,9 +9,11 @@ Browse the season's charts, tap an episode, and it lands in Plex renamed and org
 ## What it does
 
 - Search and browse anime via AniList: posters, airing schedules, synopses, and MAL-style charts (this season, trending, top rated, all-time popular, upcoming, movies, any past season).
+- Season pages list the whole season at once, premieres ranked first and a Continuing section underneath for the split-cour sequels and long-runners that carried in from earlier seasons.
 - Browse a show episode by episode - every episode with its title and air date (via AniZip), releases fetched on demand per episode with seeder-sorted targeted searches, so even a 15-year-old One Piece episode is one tap away.
 - Release rows show subs group, quality, size, seeders, and trusted flags; mixed numbering schemes (seasonal, cour continuation, absolute) resolve to the same episode.
 - One tap downloads into your library folder, renamed Plex-style (`Show/Season 01/Show - S01E01 [Group][1080p].mkv`), then triggers a partial Plex scan.
+- Completed media files can also be downloaded through the browser to the phone or computer currently accessing Torii; interrupted transfers support resuming.
 - Watchlist: pin a subs group + quality per show; new episodes auto-download as they appear on nyaa (polls every 30 min, every 10 min around the AniList air time). Adding starts with future releases; use Catch up to queue every currently available matching episode.
 - Files are hardlinked into the library so the torrent seeds back with zero extra disk use (ratio/time limits configurable, including "Don't seed").
 - Keeps Plex alive (restarts it if it stops), can create the Plex "Anime" library itself, and starts at login.
@@ -27,6 +29,9 @@ curl -fsSL https://raw.githubusercontent.com/shadohead/torii/main/install.sh | b
 
 That fetches the source to `~/.torii/app`, provisions a private Node.js runtime under `~/.torii/node` if your system has none (no Homebrew, no sudo), installs dependencies, registers the background service (starts at login), builds a double-clickable `Torii.app`, and opens the UI.
 It also prints the URL to open on your phone.
+On macOS, Torii advertises itself over Bonjour at **http://torii.local**, so the
+same memorable address works on the Mac, iPhone, and other devices on the local
+network. The numbered LAN URL remains available as a fallback.
 
 From a git checkout instead: `npm run setup` does the same for the checkout (or `bash scripts/setup.sh` if you don't have Node yet).
 Prefer minimal? `npm install && npm start` runs it in the foreground with no system integration.
