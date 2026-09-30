@@ -16,6 +16,10 @@ import * as system from './system.mjs';
 import { addClient } from './sse.mjs';
 import { freeBytes, diskSpace, incomingDir } from './organize.mjs';
 import { log } from './log.mjs';
+import { WatchTogether } from './watch-together.mjs';
+import { libraryFile } from './playback.mjs';
+
+const together = new WatchTogether({ readSessions: plex.playbackSessions, getSettings, setSettings });
 
 const PUBLIC_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public');
 const MIME = {
@@ -137,12 +141,33 @@ const routes = [
 
   ['GET', /^\/api\/settings$/, async () => {
     const s = getSettings();
+    delete s.watchTogetherToken;
     return { ...s, plexToken: s.plexToken ? '••••' + s.plexToken.slice(-4) : '' };
   }],
   ['PATCH', /^\/api\/settings$/, async (_m, _url, body) => {
     if (body.plexToken && body.plexToken.includes('•')) delete body.plexToken;
+    for (const key of Object.keys(body)) if (key.startsWith('watchTogether')) delete body[key];
     setSettings(body);
     return { ok: true };
+  }],
+
+  ['GET', /^\/api\/watch-together$/, async () => together.refresh()],
+  ['POST', /^\/api\/watch-together$/, async (_m, _url, body) => {
+    try { together.configure(body); }
+    catch (err) { err.status = 400; throw err; }
+    return together.refresh();
+  }],
+  ['POST', /^\/api\/watch-together\/container-token$/, async (_m, _url, _body, req) => {
+    if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) throw Object.assign(new Error('Start the container from the Torii server itself.'), { status: 403 });
+    return { token: together.token() };
+  }],
+  ['GET', /^\/api\/watch-together\/bridge$/, async (_m, _url, _body, req) => {
+    if (!together.authorized(req.headers.authorization)) throw Object.assign(new Error('Invalid companion token.'), { status: 401 });
+    return together.bridge();
+  }],
+  ['POST', /^\/api\/watch-together\/heartbeat$/, async (_m, _url, body, req) => {
+    if (!together.authorized(req.headers.authorization)) throw Object.assign(new Error('Invalid companion token.'), { status: 401 });
+    together.heartbeat(body); return { ok: true };
   }],
 
   // Change the library folder: validate, create, probe writability, report Plex coverage.
@@ -220,9 +245,36 @@ function serveStatic(res, pathname) {
 }
 
 // ---------- server ----------
+async function serveTogetherMedia(req, res, url) {
+  if (!together.authorized(req.headers.authorization)) return json(res, 401, { error: 'Invalid companion token.' });
+  if (req.method !== 'GET' && req.method !== 'HEAD') return json(res, 405, { error: 'Read-only media endpoint.' });
+  await together.refresh();
+  const session = together.session;
+  if (!session || !getSettings().watchTogetherEnabled || session.id !== url.searchParams.get('id') ||
+      !libraryFile(session.file, getSettings().libraryDir)) return json(res, 404, { error: 'Selected TV is not playing this anime.' });
+  const size = statSync(session.file).size;
+  let start = 0, end = size - 1;
+  if (req.headers.range) {
+    const range = req.headers.range.match(/^bytes=(\d*)-(\d*)$/);
+    if (!range || (!range[1] && !range[2])) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
+    if (!range[1]) start = Math.max(0, size - Number(range[2]));
+    else { start = Number(range[1]); if (range[2]) end = Math.min(end, Number(range[2])); }
+    if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || start < 0 || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
+  }
+  res.writeHead(req.headers.range ? 206 : 200, {
+    'Content-Type': 'application/octet-stream', 'Accept-Ranges': 'bytes',
+    'Content-Length': end - start + 1, 'Cache-Control': 'no-store',
+    ...(req.headers.range ? { 'Content-Range': `bytes ${start}-${end}/${size}` } : {}),
+  });
+  if (req.method === 'HEAD') return res.end();
+  const stream = createReadStream(session.file, { start, end });
+  stream.on('error', () => res.destroy()); res.on('close', () => stream.destroy()); stream.pipe(res);
+}
+
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x');
   try {
+    if (url.pathname === '/api/watch-together/media') return await serveTogetherMedia(req, res, url);
     if (url.pathname === '/api/events') return addClient(res);
     if (url.pathname === '/img') return servePoster(res, url);
     for (const [method, re, handler] of routes) {
@@ -230,14 +282,14 @@ const server = http.createServer(async (req, res) => {
       const m = url.pathname.match(re);
       if (!m) continue;
       const body = ['POST', 'PATCH', 'PUT'].includes(method) ? await readBody(req) : null;
-      const out = await handler(m, url, body);
+      const out = await handler(m, url, body, req);
       return json(res, 200, out);
     }
     if (url.pathname.startsWith('/api/')) return json(res, 404, { error: 'not found' });
     return serveStatic(res, url.pathname);
   } catch (err) {
     log.error(req.method, url.pathname, String(err));
-    return json(res, 500, { error: String(err.message || err) });
+    return json(res, err.status || 500, { error: String(err.message || err) });
   }
 });
 

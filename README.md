@@ -71,6 +71,51 @@ Never port-forward it.
 If you want it away from home, put your devices on a [Tailscale](https://tailscale.com) tailnet and open the Mac's tailnet address; that keeps it private without exposing anything.
 Remote streaming is Plex's job, not Torii's - enable Plex Remote Access and use the Plex apps.
 
+## Watch together on Discord
+
+Watch anime on your Plex TV while a separate Discord account shares a synchronized
+player. Its Chromium login, desktop, audio, episode cache, and FFmpeg encoder run
+inside Docker. Your normal Mac Discord account stays logged in separately.
+
+1. Install/start Docker Desktop, restart Torii after updating, then run
+   `npm run watch-together:container` from this checkout. The first build downloads
+   the Linux desktop dependencies.
+2. Play an anime from Torii's library on the TV. In **Setup → Watch together on
+   Discord**, refresh players, choose the TV, and enable TV sync.
+3. On the server, open [the isolated desktop](http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale).
+   Sign into the **separate account inside this desktop**, join a voice channel,
+   and share the **Torii Watch Together browser tab** with **Share tab audio**
+   enabled. Sharing the entire desktop does not carry tab audio.
+4. Friends join that Discord channel and click **Watch Stream**. Torii follows TV
+   pauses, buffering, seeks, track choices, and episode changes. Go Live needs to
+   be started once per Discord sharing session; Torii does not automate Discord
+   accounts. No Discord token or password is supplied to Torii or ShootyBot.
+
+The container's desktop is bound to localhost port 6080. Its only volume holds its
+own browser profile; it mounts no Mac directories, display, audio device, or Docker
+socket, and runs as an unprivileged user with dropped capabilities. It reaches Torii
+over HTTP with a dedicated bearer token, rather than receiving the Plex token. The
+media endpoint only serves the selected TV's current single-file anime inside the
+configured library, with realpath checks. Torii itself retains its existing trusted
+LAN model; the container has network access to reach Torii and Discord.
+
+The first episode load copies the file into the container (up to 8 GB), then encodes
+720p H.264/AAC with selected embedded subtitles burned in. Seeking outside the
+encoded range rebuilds segments from the TV's new position. Sync is approximate:
+Plex reports position periodically, and Discord adds latency. Use the adjustment
+in Setup to tune it (positive means the companion is ahead). When Plex fails or
+progress stops arriving for 30 seconds, the companion pauses. External subtitles
+and multipart episodes are currently unsupported. Check audio and subtitle tracks
+on an actual episode before inviting friends; the Setup status confirms container
+playback, while Go Live must be checked in Discord.
+
+Keep Docker/the server awake for a sharing session. The isolated Discord login
+persists across restarts; restarting the container requires starting Go Live again.
+Manage it with `npm run watch-together:container -- stop | status | logs`.
+To use a different Torii port, set `TORII_PORT` when starting the container; for
+custom networking, set `TORII_LOCAL_URL` (launcher connection) and
+`TORII_COMPANION_URL` (container connection). No host Plex playback is modified.
+
 ## Design notes
 
 - Node 22-era ESM, zero-framework HTTP server, two dependencies: `webtorrent` (pinned to v2 - v3 has a piece-accounting regression) and `better-sqlite3`.

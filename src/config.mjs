@@ -26,6 +26,10 @@ export const DEFAULT_SETTINGS = {
   preferredGroups: ['SubsPlease', 'Erai-raws'],
   autoDownload: true,
   keepPlexRunning: true,
+  watchTogetherEnabled: false,
+  watchTogetherPlayerId: '',
+  watchTogetherOffsetSeconds: 0,
+  watchTogetherToken: '',
   // Torrent engine tuning - kept conservative so the Mac stays responsive.
   maxConns: 30,
   downloadLimitKBs: 0,          // 0 = unlimited

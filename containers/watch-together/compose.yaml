@@ -1,0 +1,28 @@
+name: torii-watch-together
+services:
+  companion:
+    build: .
+    hostname: torii-companion
+    ports:
+      - "127.0.0.1:6080:6080"
+    environment:
+      TORII_URL: ${TORII_COMPANION_URL:-http://host.docker.internal:3939}
+      TORII_WATCH_TOKEN: ${TORII_WATCH_TOKEN:?Start with npm run watch-together:container}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - discord-profile:/home/torii
+    shm_size: 1gb
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 4g
+    cpus: 4
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8080/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      start_period: 30s
+volumes:
+  discord-profile:

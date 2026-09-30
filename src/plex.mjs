@@ -5,6 +5,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { getSettings, setSettings } from './db.mjs';
 import { log } from './log.mjs';
+import { normalizeSessions } from './playback.mjs';
 
 const exec = promisify(execFile);
 
@@ -23,6 +24,18 @@ export async function status() {
     return { running: true, version: body.MediaContainer?.version, machineId: body.MediaContainer?.machineIdentifier };
   } catch {
     return { running: false };
+  }
+}
+
+export async function playbackSessions() {
+  if (!getSettings().plexToken) throw new Error('Set the Plex token in Setup to find TV playback.');
+  try {
+    const res = await plexFetch('/status/sessions');
+    if (!res.ok) throw new Error('Plex rejected the playback request. Check its URL and token in Setup.');
+    return normalizeSessions(await res.json(), getSettings().libraryDir);
+  } catch (err) {
+    if (err.message.startsWith('Plex rejected')) throw err;
+    throw new Error('Could not read TV playback from Plex. Check that the Plex server is running.');
   }
 }
 
