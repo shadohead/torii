@@ -1,4 +1,11 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Torii Watch Together</title>
-<style>body{margin:0;background:#0a0d15;color:#edeff6;font:16px system-ui}video{width:100vw;height:calc(100vh - 55px);object-fit:contain;background:black}footer{height:55px;display:flex;align-items:center;gap:16px;padding:0 20px;box-sizing:border-box}#status{flex:1}button{background:#e8503a;color:white;border:0;border-radius:8px;padding:8px 15px;cursor:pointer}.waiting video{visibility:hidden}.waiting:before{content:'TORII · Waiting for your TV';position:absolute;top:40%;width:100%;text-align:center;color:#8b94aa;font-size:26px}</style>
-</head><body class="waiting"><video id="video" playsinline></video><footer><span id="status" role="status">Connecting to Torii…</span><button id="play">Enable sound</button><button id="full">Full screen</button></footer><script src="/hls.js"></script><script src="/player.js"></script></body></html>
+<style>
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+video{display:block;width:100%;height:100%;object-fit:contain;background:#000;cursor:none;outline:none}
+video:fullscreen{width:100%;height:100%;background:#000}
+video::-webkit-media-controls{display:none!important}
+.waiting video{visibility:hidden}
+#status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+</style>
+</head><body class="waiting"><video id="video" playsinline tabindex="0" aria-label="Synced anime video"></video><span id="status" role="status">Connecting to Torii…</span><script src="/hls.js"></script><script src="/player.js"></script></body></html>

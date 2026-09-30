@@ -1,7 +1,17 @@
 const video = document.querySelector('video'), label = document.querySelector('#status');
 let hls, playlist, sample, sampledAt = 0, restarting = false, fetching = false;
-document.querySelector('#play').onclick = () => { video.muted = false; video.play().catch(() => {}); };
-document.querySelector('#full').onclick = () => document.documentElement.requestFullscreen();
+function enableSound() { video.muted = false; if (sample?.session?.state === 'playing') video.play().catch(() => {}); }
+function fullscreen() {
+  const action = document.fullscreenElement ? document.exitFullscreen() : video.requestFullscreen();
+  action.catch(() => {});
+}
+video.addEventListener('click', enableSound);
+video.addEventListener('dblclick', () => { enableSound(); fullscreen(); });
+document.addEventListener('keydown', event => {
+  if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
+  if (event.key.toLowerCase() === 'f') { event.preventDefault(); fullscreen(); }
+  else if (event.key.toLowerCase() === 'm') video.muted = !video.muted;
+});
 function pause(message) { video.pause(); document.body.classList.add('waiting'); label.textContent = message; }
 async function sync() {
   if (fetching) return;
@@ -32,7 +42,7 @@ async function sync() {
         restarting = true; await fetch('/seek', { method: 'POST' }); setTimeout(() => { restarting = false; }, 10000);
       }
     }
-    if (s.state === 'playing') video.play().catch(() => { label.textContent = 'Click Enable sound to begin playback.'; });
+    if (s.state === 'playing') video.play().catch(() => { label.textContent = 'Click the video to begin playback with sound.'; });
     else video.pause();
   } catch { pause('Connection lost. Playback paused.'); sample = null; }
   finally { fetching = false; }

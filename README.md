@@ -89,6 +89,9 @@ inside Docker. Your normal Mac Discord account stays logged in separately.
    Sign into the **separate account inside this desktop**, join a voice channel,
    and share the **Torii Watch Together browser tab** with **Share tab audio**
    enabled. Sharing the entire desktop does not carry tab audio.
+   The shared player shows only the video, with no title, buttons, pointer, or
+   scrollbars. Press **F** or double-click the video for fullscreen; **Esc** exits.
+   Click the video if sound needs enabling, or press **M** to toggle mute.
 4. Friends join that Discord channel and click **Watch Stream**. Torii follows TV
    pauses, buffering, seeks, track choices, and episode changes. Go Live needs to
    be started once per Discord sharing session; Torii does not automate Discord
