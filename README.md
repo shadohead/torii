@@ -116,6 +116,15 @@ inside Docker. Your normal Mac Discord account stays logged in separately.
    prompts. It uses the logged-in UI, without extracting a Discord token or
    password or using private Discord APIs.
 
+After setup, use **Setup → Watch together on Discord** in `torii.local`:
+**Start sharing** resumes automatic sharing in the saved channel and starts the
+installed companion if it is stopped. It waits for anime on the selected TV.
+**Pause sharing** ends the Discord broadcast and leaves voice within a few seconds;
+the TV keeps playing. **Resume sharing** returns to the TV's current position.
+The sharing choice survives Torii/container restarts, and pausing takes priority
+over automatic reconnection. Docker Desktop must be running; first-time image
+installation and Discord login still use the setup steps above.
+
 Browser automation is an unofficial approach. Discord's
 [automated account policy](https://support.discord.com/hc/en-us/articles/115002192352-Automated-User-Accounts-Self-Bots)
 prohibits automating regular accounts and does not list a personal-server

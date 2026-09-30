@@ -11,7 +11,7 @@ const headers = { Authorization: `Bearer ${process.env.TORII_WATCH_TOKEN || ''}`
 const root = '/tmp/torii-media'; mkdirSync(root, { recursive: true });
 const input = join(root, 'episode.mkv'), encoder = new Transcoder();
 let status = { state: 'waiting', error: null, session: null }, readyKey = '', downloaded = '', job = null, generation = 0, base = 0, snapshot;
-let targetKey = '', downloadAbort, retryAt = 0;
+let targetKey = '', downloadAbort, retryAt = 0, controlReady = false;
 const key = session => `${session.mediaId}:${session.id}:${session.audioTrack}:${session.subtitleTrack}`;
 async function bridge(path, options = {}) {
   const res = await fetch(new URL(path, upstream), { ...options, headers: { ...headers, ...options.headers }, signal: options.signal || AbortSignal.timeout(10000) });
@@ -53,6 +53,7 @@ async function poll() {
   polling = true;
   try {
     snapshot = await (await bridge('/api/watch-together/bridge')).json();
+    controlReady = typeof snapshot.sharingPaused === 'boolean';
     const session = snapshot.enabled && snapshot.state === 'following' ? snapshot.session : null;
     const previousKey = targetKey;
     targetKey = session ? key(session) : '';
@@ -67,6 +68,7 @@ async function poll() {
     } else if (readyKey === targetKey && !job) status = { state: 'following', error: null, session };
     await bridge('/api/watch-together/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: status.state, error: status.error, discord: readDiscordStatus() }) });
   } catch {
+    controlReady = false;
     targetKey = ''; downloadAbort?.abort();
     status = { state: 'error', error: 'Torii is unreachable. Playback paused until it reconnects.', session: null };
   } finally { polling = false; }
@@ -77,7 +79,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
   if (url.pathname === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ ...status, discord: readDiscordStatus(), base, generation, playlist: readyKey && readyKey === targetKey ? `/hls/${generation}/index.m3u8` : null }));
+    return res.end(JSON.stringify({ ...status, controlReady, sharingPaused: snapshot?.sharingPaused === true, discord: readDiscordStatus(), base, generation, playlist: readyKey && readyKey === targetKey ? `/hls/${generation}/index.m3u8` : null }));
   }
   if (url.pathname === '/seek' && req.method === 'POST') {
     // The viewer requests a fresh segment range, but never controls the TV.

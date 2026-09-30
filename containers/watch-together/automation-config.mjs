@@ -5,7 +5,7 @@ import { pathToFileURL } from 'node:url';
 
 export const configFile = join(homedir(), 'discord-automation.json');
 export const statusFile = '/tmp/torii-discord-automation.json';
-export const discordStates = ['disabled', 'unconfigured', 'waiting', 'starting', 'joining', 'sharing', 'streaming', 'needs_login', 'needs_verification', 'needs_attention', 'retrying', 'error'];
+export const discordStates = ['disabled', 'unconfigured', 'waiting', 'paused', 'starting', 'joining', 'sharing', 'streaming', 'needs_login', 'needs_verification', 'needs_attention', 'retrying', 'error'];
 
 export function channelTarget(value) {
   const url = new URL(value);
@@ -29,7 +29,10 @@ export function saveConfig(value, file = configFile) {
 }
 export function publicDiscordStatus(value, now = Date.now()) {
   if (!value || !discordStates.includes(value.state) || !Number.isFinite(value.at) || value.at > now + 5000 || now - value.at > 45000) return null;
-  return { state: value.state, error: typeof value.error === 'string' ? value.error.slice(0, 250) : null, video: value.video === true, audio: value.audio === true, at: value.at };
+  const status = { state: value.state, error: typeof value.error === 'string' ? value.error.slice(0, 250) : null, video: value.video === true, audio: value.audio === true, at: value.at };
+  if (typeof value.automationEnabled === 'boolean') status.automationEnabled = value.automationEnabled;
+  if (typeof value.destination === 'string') status.destination = value.destination.slice(0, 120);
+  return status;
 }
 export function readDiscordStatus(now = Date.now()) {
   try { return publicDiscordStatus(JSON.parse(readFileSync(statusFile, 'utf8')), now); } catch { return null; }

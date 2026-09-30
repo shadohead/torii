@@ -29,6 +29,7 @@ export const DEFAULT_SETTINGS = {
   watchTogetherEnabled: false,
   watchTogetherPlayerId: '',
   watchTogetherOffsetSeconds: 0,
+  watchTogetherSharingPaused: false,
   watchTogetherToken: '',
   // Torrent engine tuning - kept conservative so the Mac stays responsive.
   maxConns: 30,

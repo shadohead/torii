@@ -584,6 +584,7 @@ function connectSSE() {
 }
 
 /* ============ setup ============ */
+let togetherState, togetherSharingBusy = false, togetherSharingAction = null;
 async function renderSetup() {
   try {
     const [status, settings, together] = await Promise.all([api('/api/status'), api('/api/settings'), api('/api/watch-together')]);
@@ -594,23 +595,31 @@ async function renderSetup() {
     $('#setup-body').innerHTML = `
     <div class="set-card" id="together-card">
       <h3>Watch together on Discord</h3>
-      <p class="set-help">Watch downstairs while friends join a separate Discord account’s stream. The player and Discord login run in an isolated container on the Plex server.</p>
+      <p class="set-help">Watch downstairs while friends watch the same anime in Discord.</p>
+      <p id="together-destination" class="together-destination"></p>
+      <div id="together-status" class="together-status" role="status" aria-live="polite"></div>
+      <div class="btn-row together-sharing">
+        <button class="sbtn primary" id="together-share-start">Start sharing</button>
+        <button class="sbtn" id="together-share-pause">Pause sharing</button>
+      </div>
+      <p class="set-help">Pause sharing ends the Discord broadcast. Resume returns to the TV’s current position. Your TV keeps playing independently.</p>
       <div class="kv"><label class="k" for="together-player">TV to follow</label>
         <select id="together-player">${togetherPlayerOptions(together)}</select></div>
       <div class="kv"><label class="k" for="together-offset">Sync adjustment</label>
         <div class="together-offset"><input id="together-offset" type="number" min="-30" max="30" step="0.5" value="${Number(together.offsetSeconds) || 0}"><span>seconds</span></div></div>
       <p class="set-help">Start an anime on the TV, then refresh to find it. Positive adjustment moves the companion ahead to allow for Discord’s delay.</p>
-      <div id="together-status" class="together-status" role="status" aria-live="polite"></div>
       <div class="btn-row">
         <button class="sbtn" id="together-start">${together.enabled ? 'Save TV & sync' : 'Enable TV sync'}</button>
         <button class="sbtn" id="together-stop" ${together.enabled ? '' : 'disabled'}>Disable sync</button>
         <button class="sbtn" id="together-refresh">Refresh players</button>
       </div>
+      <details class="together-install"><summary>First-time setup & account access</summary>
       <ol class="together-steps">
         <li>On the server, run <code>npm run watch-together:container</code> once to start the isolated desktop.</li>
         <li>Open <a href="http://127.0.0.1:6080/vnc.html?autoconnect=true&amp;resize=scale" target="_blank" rel="noopener">the isolated desktop</a> on the server and sign into your separate Discord account there.</li>
         <li>Enable saved channel automation on the server with <code>npm run watch-together:container -- automate CHANNEL_URL</code>. Otherwise, join manually and share the <b>Torii Watch Together browser tab</b> with <b>tab audio</b>.</li>
       </ol>
+      </details>
       <p class="set-help">Friends join the channel and click Watch Stream. With automation enabled, Discord joins and shares when the TV starts, reconnects after interruptions, and leaves after the TV has stopped for a minute. Login or verification prompts need your help in the isolated desktop. Your normal Mac Discord login stays separate.</p>
     </div>
     <div class="set-card">
@@ -677,13 +686,14 @@ async function renderSetup() {
       <div class="kv"><span class="k">Plex library</span><span class="v">add folder as "TV Shows" type</span></div>
     </div>`;
     renderTogetherStatus(together);
+    for (const action of ['start', 'pause']) $('#together-share-' + action).onclick = () => controlTogetherSharing(action);
     $('#together-start').onclick = async () => {
       const button = $('#together-start'); button.disabled = true;
       try {
         renderTogetherStatus(await api('/api/watch-together', { method: 'POST', body: {
           enabled: true, playerId: $('#together-player').value, offsetSeconds: Number($('#together-offset').value),
         } }));
-        toast('TV sync enabled · start Go Live inside the container');
+        toast('TV sync enabled');
       } catch (err) { toast(err.message); }
       finally { button.disabled = false; }
     };
@@ -763,19 +773,36 @@ function togetherPlayerOptions(state) {
 }
 function renderTogetherStatus(state) {
   const target = $('#together-status'); if (!target) return;
+  togetherState = state;
   let text = state.enabled ? 'Waiting for anime on the selected TV.' : 'TV sync is off.';
   if (state.state === 'following' && state.session) {
     const s = state.session;
     text = `${s.state === 'playing' ? 'Following' : 'Paused with'} ${s.player} · ${s.show || s.title}${s.show ? ` · S${s.season}E${s.episode}` : ''}`;
   }
-  if (state.enabled) text += state.companion ? ` · Container ${state.companion.state}` : ' · Container not connected';
+  if (state.enabled && !state.companion) text += ' · Companion offline. Start sharing brings it back up.';
   const discord = state.companion?.discord;
-  if (discord) text += discord.state === 'streaming' ? ' · Discord sharing video + audio' : ` · Discord ${discord.state.replaceAll('_', ' ')}`;
+  if (state.sharingPaused) text = discord?.state === 'paused' ? 'Discord sharing paused.' : state.companion ? 'Pausing Discord sharing…' : 'Sharing paused. The companion is offline.';
+  else if (discord) text += discord.state === 'streaming' ? ' · Sharing video + audio in Discord' : ` · Discord ${discord.state.replaceAll('_', ' ')}`;
+  $('#together-destination').textContent = discord?.destination || 'Saved Discord voice channel';
   const error = state.error || state.companion?.error || discord?.error;
   target.textContent = error || text;
   target.className = 'together-status ' + (error ? 'bad' : state.companion?.state === 'following' ? 'ok' : '');
   $('#together-start').textContent = state.enabled ? 'Save TV & sync' : 'Enable TV sync';
   $('#together-stop').disabled = !state.enabled;
+  const start = $('#together-share-start'), pause = $('#together-share-pause');
+  start.textContent = togetherSharingBusy && togetherSharingAction === 'start' ? 'Starting…' : state.sharingPaused ? 'Resume sharing' : 'Start sharing';
+  pause.textContent = togetherSharingBusy && togetherSharingAction === 'pause' ? 'Pausing…' : state.sharingPaused ? 'Sharing paused' : 'Pause sharing';
+  start.disabled = togetherSharingBusy || !state.enabled || !state.playerId || (!state.sharingPaused && ['joining', 'sharing', 'streaming'].includes(discord?.state));
+  pause.disabled = togetherSharingBusy || state.sharingPaused;
+}
+async function controlTogetherSharing(action) {
+  togetherSharingBusy = true; togetherSharingAction = action;
+  renderTogetherStatus(togetherState);
+  try {
+    renderTogetherStatus(await api('/api/watch-together/sharing', { method: 'POST', body: { action } }));
+    toast(action === 'pause' ? 'Pause requested' : 'Sharing will follow your TV');
+  } catch (err) { toast(err.message); }
+  finally { togetherSharingBusy = false; togetherSharingAction = null; renderTogetherStatus(togetherState); }
 }
 setInterval(async () => {
   if (!$('#scr-setup').classList.contains('on') || !$('#together-status')) return;

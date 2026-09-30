@@ -4,6 +4,9 @@ shutdown() { trap - TERM INT; wait || true; exit 0; }
 trap shutdown TERM INT
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
+# A stopped container keeps /tmp, but none of its old display/audio processes.
+# Clear only this desktop's transient locks, preserving the Discord profile.
+rm -f /tmp/.X99-lock /tmp/.X11-unix/X99 "$XDG_RUNTIME_DIR/pulse/pid" "$XDG_RUNTIME_DIR/pulse/native" /tmp/torii-discord-automation.json
 Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
 for attempt in {1..50}; do
   if test -S /tmp/.X11-unix/X99; then break; fi

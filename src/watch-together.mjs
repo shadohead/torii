@@ -3,8 +3,8 @@ import { PlaybackClock, publicSession } from './playback.mjs';
 import { publicDiscordStatus } from '../containers/watch-together/automation-config.mjs';
 
 export class WatchTogether {
-  constructor({ readSessions, getSettings, setSettings, now = Date.now }) {
-    Object.assign(this, { readSessions, getSettings, setSettings, now });
+  constructor({ readSessions, getSettings, setSettings, ensureCompanion, now = Date.now }) {
+    Object.assign(this, { readSessions, getSettings, setSettings, ensureCompanion, now });
     this.clock = new PlaybackClock(); this.sessions = []; this.session = null;
     this.state = 'disabled'; this.error = null; this.companion = null;
   }
@@ -36,6 +36,7 @@ export class WatchTogether {
     const s = this.getSettings();
     return {
       enabled: s.watchTogetherEnabled, playerId: s.watchTogetherPlayerId,
+      sharingPaused: s.watchTogetherSharingPaused === true,
       offsetSeconds: s.watchTogetherOffsetSeconds, state: this.state, error: this.error,
       session: this.session ? publicSession(this.session) : null,
       sessions: this.sessions.map(publicSession),
@@ -48,6 +49,17 @@ export class WatchTogether {
     if (typeof offsetSeconds !== 'number' || !Number.isFinite(offsetSeconds) || Math.abs(offsetSeconds) > 30) throw new Error('Sync adjustment must be between -30 and 30 seconds.');
     this.setSettings({ watchTogetherEnabled: enabled, watchTogetherPlayerId: playerId.trim(), watchTogetherOffsetSeconds: offsetSeconds });
     this.clock.reset(); this.session = null; this.companion = null;
+  }
+  async controlSharing(action) {
+    if (!['start', 'pause'].includes(action)) throw Object.assign(new Error('Choose start or pause sharing.'), { status: 400 });
+    const s = this.getSettings();
+    if (action === 'start' && (!s.watchTogetherEnabled || !s.watchTogetherPlayerId)) {
+      throw Object.assign(new Error('Choose your TV and enable TV sync first.'), { status: 400 });
+    }
+    // Save the request before starting Docker; a newer Pause must win while Start waits.
+    this.setSettings({ watchTogetherSharingPaused: action === 'pause' });
+    if (action === 'start' && !this.status().companion) await this.ensureCompanion?.(this.token());
+    return this.refresh();
   }
   token() {
     let token = this.getSettings().watchTogetherToken;
@@ -69,6 +81,7 @@ export class WatchTogether {
     await this.refresh();
     return {
       enabled: this.getSettings().watchTogetherEnabled, state: this.state, error: this.error,
+      sharingPaused: this.getSettings().watchTogetherSharingPaused === true,
       session: this.session ? {
         ...publicSession(this.session), position: this.position,
         audioTrack: this.session.audioTrack, subtitleTrack: this.session.subtitleTrack,

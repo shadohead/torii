@@ -17,10 +17,13 @@ import { addClient } from './sse.mjs';
 import { freeBytes, diskSpace, incomingDir } from './organize.mjs';
 import { log } from './log.mjs';
 import { WatchTogether } from './watch-together.mjs';
+import { containerStarter } from './watch-container-control.mjs';
 import { libraryFile } from './playback.mjs';
 import { LOCAL_HOSTNAME, publishLocalHostname } from './mdns.mjs';
 
-const together = new WatchTogether({ readSessions: plex.playbackSessions, getSettings, setSettings });
+const startCompanion = containerStarter();
+const together = new WatchTogether({ readSessions: plex.playbackSessions, getSettings, setSettings,
+  ensureCompanion: token => startCompanion(token, PORT_OVERRIDE || getSettings().port) });
 
 const PUBLIC_DIR = join(fileURLToPath(new URL('.', import.meta.url)), '..', 'public');
 const MIME = {
@@ -157,6 +160,13 @@ const routes = [
     try { together.configure(body); }
     catch (err) { err.status = 400; throw err; }
     return together.refresh();
+  }],
+  ['POST', /^\/api\/watch-together\/sharing$/, async (_m, _url, body, req) => {
+    if (!req.headers['content-type']?.startsWith('application/json') ||
+        (req.headers.origin && new URL(req.headers.origin).host !== req.headers.host)) {
+      throw Object.assign(new Error('Use the sharing controls in the Torii app.'), { status: 403 });
+    }
+    return together.controlSharing(body.action);
   }],
   ['POST', /^\/api\/watch-together\/container-token$/, async (_m, _url, _body, req) => {
     if (!['127.0.0.1', '::1', '::ffff:127.0.0.1'].includes(req.socket.remoteAddress)) throw Object.assign(new Error('Start the container from the Torii server itself.'), { status: 403 });

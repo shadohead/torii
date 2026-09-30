@@ -8,7 +8,8 @@ const playerTitle = 'Torii Watch Together';
 const recovery = new RecoverySchedule();
 let context, discord, player, stopping = false, lastState = '', currentTarget = '';
 function report(state, error = null, capture = {}) {
-  const value = { state, error, video: capture.video === true, audio: capture.audio === true, width: capture.width || null, height: capture.height || null, at: Date.now() };
+  const config = readConfig();
+  const value = { state, error, video: capture.video === true, audio: capture.audio === true, width: capture.width || null, height: capture.height || null, automationEnabled: config.enabled, destination: config.name, at: Date.now() };
   writeFileSync(`${statusFile}.tmp`, JSON.stringify(value), { mode: 0o600 });
   renameSync(`${statusFile}.tmp`, statusFile);
   const key = `${state}:${error || ''}`;
@@ -31,6 +32,7 @@ function observeCapture() {
     const settings = video?.getSettings();
     return { video: !!video, audio: !!audio, surface: settings?.displaySurface || null, width: settings?.width || null, height: settings?.height || null };
   };
+  window.__toriiStopCapture = () => captured?.getTracks().forEach(track => track.stop());
 }
 const visibleButton = (page, name) => page.getByRole('button', { name }).filter({ visible: true }).first();
 const isVisible = async locator => locator.isVisible().catch(() => false);
@@ -52,8 +54,29 @@ async function attention() {
   return null;
 }
 async function leave() {
+  await discord.evaluate(() => window.__toriiStopCapture?.());
+  if (await isVisible(visibleButton(discord, /^Go Live$/i))) await discord.keyboard.press('Escape');
   if (await isVisible(stopShare())) await stopShare().click();
   if (await isVisible(disconnect())) await disconnect().click();
+}
+async function readMedia() {
+  const res = await fetch(new URL('/status', playerUrl), { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error('player-unavailable');
+  return res.json();
+}
+async function stopForControl(media) {
+  if (context && discord && !discord.isClosed()) {
+    await leave();
+    await discord.waitForFunction(() => !window.__toriiCaptureStatus?.().video, null, { timeout: 5000 });
+  }
+  recovery.recovered();
+  report(media.controlReady ? 'paused' : 'error', media.controlReady ? null : 'Waiting for Torii sharing controls to reconnect.');
+}
+async function mayStartSharing() {
+  const media = await readMedia();
+  if (!media.controlReady || media.sharingPaused) { await stopForControl(media); return false; }
+  if (!media.session || !['following', 'loading'].includes(media.state)) { await leave(); report('waiting'); return false; }
+  return true;
 }
 async function dismissPromotion() {
   // Close only a recognized non-binding promotion, never verification or terms.
@@ -64,6 +87,7 @@ async function dismissPromotion() {
   if (await isVisible(teenNotice) && await isVisible(visibleButton(discord, /^Close$/i))) await visibleButton(discord, /^Close$/i).click();
 }
 async function joinAndShare(config) {
+  if (!await mayStartSharing()) return;
   // Discord redirects voice-channel URLs to the last text channel in the guild.
   // Remaining in that guild is enough; use its exact voice-channel link to join.
   if (!discord.url().startsWith(`https://discord.com/channels/${config.guildId}/`)) await discord.goto(config.channelUrl, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -78,6 +102,7 @@ async function joinAndShare(config) {
     else await link.click({ timeout: 15000 });
     await discord.getByText('Voice Connected', { exact: true }).first().waitFor({ state: 'visible', timeout: 30000 });
   }
+  if (!await mayStartSharing()) return;
   let capture = await captureStatus();
   if (capture.video && capture.audio && capture.surface === 'browser' && await isVisible(stopShare())) {
     recovery.recovered(); report('streaming', null, capture); return;
@@ -92,6 +117,7 @@ async function joinAndShare(config) {
   const deadline = Date.now() + 30000;
   let clickedGoLive = false;
   while (Date.now() < deadline && !stopping) {
+    if (!await mayStartSharing()) return;
     const gate = await attention();
     if (gate) { report(...gate); return; }
     const go = visibleButton(discord, /^Go Live$/i);
@@ -125,6 +151,9 @@ async function launch() {
   recovery.recovered();
 }
 async function tick() {
+  // Pause takes priority over reconnect backoff and also stops a manual share.
+  const media = await readMedia();
+  if (!media.controlReady || media.sharingPaused) { await stopForControl(media); return; }
   if (!context || !player || !discord || player.isClosed() || discord.isClosed()) {
     if (!recovery.canRetry(Date.now())) { report('retrying', 'Restarting the isolated browser shortly.'); return; }
     await context?.close().catch(() => {}); context = null; await launch();
@@ -137,9 +166,6 @@ async function tick() {
   }
   const gate = await attention();
   if (gate) { report(...gate); return; }
-  const res = await fetch(new URL('/status', playerUrl), { signal: AbortSignal.timeout(5000) });
-  if (!res.ok) throw new Error('player-unavailable');
-  const media = await res.json();
   const active = !!media.session && ['following', 'loading'].includes(media.state);
   if (!active) {
     if (recovery.shouldLeave(false, Date.now())) await leave();
@@ -157,6 +183,8 @@ for (const sig of ['SIGTERM', 'SIGINT']) process.on(sig, () => { stopping = true
 while (!stopping) {
   try { await tick(); }
   catch {
+    // Do not keep broadcasting when the control connection is unavailable.
+    if (discord && !discord.isClosed()) await leave().catch(() => {});
     recovery.failed(Date.now());
     report('retrying', 'Discord controls could not be reached. Retrying; check the isolated desktop if this persists.');
     // Narrow diagnostics include control labels only, never messages or credentials.

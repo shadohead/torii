@@ -44,3 +44,9 @@ test('Discord heartbeat exposes capture evidence only, drops private fields, and
   assert.equal(together.status().companion.discord.audio, true);
   assert.equal(JSON.stringify(together.status()).includes('secret'), false);
 });
+test('paused status exposes the saved destination while excluding channel URLs and credentials', () => {
+  const value = publicDiscordStatus({ state: 'paused', video: false, audio: false, at: 10000, automationEnabled: true, destination: 'The Zoo · Beanbag Lounge', channelUrl: target, token: 'secret' }, 10000);
+  assert.equal(value.state, 'paused'); assert.equal(value.destination, 'The Zoo · Beanbag Lounge');
+  assert.equal(value.automationEnabled, true);
+  assert.equal('channelUrl' in value, false); assert.equal('token' in value, false);
+});

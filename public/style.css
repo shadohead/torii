@@ -17,6 +17,11 @@
 * { box-sizing: border-box; min-width: 0; }
 .set-help { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 8px 0; }
 .together-status { font-size: 12px; line-height: 1.5; padding: 10px 0; }
+.together-destination { margin: 14px 0 0; color: var(--gold); font-size: 14px; font-weight: 700; }
+.together-sharing .sbtn { flex: 1; padding: 12px; }
+.together-sharing .primary { background: var(--gold); color: var(--bg); border-color: var(--gold); }
+.together-install { margin: 16px 0; font-size: 12px; color: var(--muted); }
+.together-install summary { cursor: pointer; }
 .together-steps { padding-left: 20px; margin: 12px 0; color: var(--muted); font-size: 12px; line-height: 1.7; }
 .together-steps li + li { margin-top: 6px; }
 .together-steps a { color: var(--gold); }
