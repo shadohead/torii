@@ -12,6 +12,8 @@ const PLIST = join(homedir(), 'Library/LaunchAgents', `${LABEL}.plist`);
 const SERVER = join(dirname(fileURLToPath(import.meta.url)), 'server.mjs');
 
 function plistXml() {
+  // The media bridge serves user-requested episodes; Darwin background I/O
+  // throttling can make the companion's initial file transfer time out.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -25,9 +27,9 @@ function plistXml() {
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key>
   <dict><key>SuccessfulExit</key><false/></dict>
-  <key>ProcessType</key><string>Background</string>
+  <key>ProcessType</key><string>Standard</string>
   <key>Nice</key><integer>10</integer>
-  <key>LowPriorityBackgroundIO</key><true/>
+  <key>LowPriorityBackgroundIO</key><false/>
   <key>StandardOutPath</key><string>${LOG_FILE}</string>
   <key>StandardErrorPath</key><string>${LOG_FILE}</string>
   <key>EnvironmentVariables</key>
