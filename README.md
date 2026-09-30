@@ -103,6 +103,12 @@ inside Docker. Your normal Mac Discord account stays logged in separately.
    after sharing, preserving 16:9 framing across restarts. For manual sharing,
    press **F** or double-click the video for fullscreen; **Esc** exits.
    Click the video if sound needs enabling, or press **M** to toggle mute.
+   A clear overlay stays visible while the TV is paused or buffering, or when
+   loading/connection/playback problems interrupt the stream. Rewinds,
+   fast-forwards/skips, and episode changes show a brief four-second notice.
+   These indicators are captured in fullscreen and disappear during normal play.
+   The paused view includes the show, episode name, and a read-only progress bar
+   with elapsed/total time from the TV.
 4. Friends join that Discord channel and click **Watch Stream**. Torii follows TV
    pauses, buffering, seeks, track choices, and episode changes. Automation
    reconnects after an interrupted share and leaves after the TV has been idle for

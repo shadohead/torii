@@ -71,7 +71,7 @@ async function poll() {
     status = { state: 'error', error: 'Torii is unreachable. Playback paused until it reconnects.', session: null };
   } finally { polling = false; }
 }
-const mime = { '.html': 'text/html', '.js': 'text/javascript', '.m3u8': 'application/vnd.apple.mpegurl', '.ts': 'video/mp2t' };
+const mime = { '.html': 'text/html', '.js': 'text/javascript', '.mjs': 'text/javascript', '.m3u8': 'application/vnd.apple.mpegurl', '.ts': 'video/mp2t' };
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://localhost');
   if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
@@ -86,6 +86,7 @@ const server = http.createServer(async (req, res) => {
   }
   const file = url.pathname === '/' ? new URL('./player.html', import.meta.url) :
     url.pathname === '/player.js' ? new URL('./player.js', import.meta.url) :
+    url.pathname === '/indicators.mjs' ? new URL('./indicators.mjs', import.meta.url) :
     url.pathname === '/hls.js' ? new URL('./node_modules/hls.js/dist/hls.min.js', import.meta.url) :
     /^\/hls\/\d+\/(?:index\.m3u8|segment-\d+\.ts)$/.test(url.pathname) ? join(root, url.pathname.slice(5)) : null;
   if (!file) { res.writeHead(404); return res.end(); }

@@ -1,11 +1,39 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Torii Watch Together</title>
 <style>
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000}
+html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#000;color:#fff;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+#stage{position:relative;width:100%;height:100%;overflow:hidden;background:#000;cursor:none}
+#stage:fullscreen{width:100%;height:100%;background:#000}
 video{display:block;width:100%;height:100%;object-fit:contain;background:#000;cursor:none;outline:none}
-video:fullscreen{width:100%;height:100%;background:#000}
 video::-webkit-media-controls{display:none!important}
 .waiting video{visibility:hidden}
+[hidden]{display:none!important}
+.state-layer{position:absolute;inset:0;display:grid;place-items:center;padding:32px;background:rgba(0,0,0,.24);pointer-events:none}
+.state-card{box-sizing:border-box;min-width:320px;max-width:650px;padding:26px 36px;text-align:center;background:rgba(13,17,24,.9);border:1px solid rgba(255,255,255,.22);border-radius:20px;box-shadow:0 12px 48px rgba(0,0,0,.35)}
+.indicator-icon{width:48px;height:48px;fill:none;stroke:currentColor;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.state-card[data-kind="pause"] .indicator-icon{color:#ffd96a}
+.state-card[data-kind="pause"]{width:680px;max-width:88vw}
+.pause-info{margin-top:22px;padding-top:18px;border-top:1px solid rgba(255,255,255,.16);text-align:left}
+.pause-series{font-size:clamp(15px,1.6vw,21px);line-height:1.4;color:#c0cee0;overflow-wrap:anywhere}
+.pause-episode{margin-top:7px;font-size:clamp(20px,2.2vw,29px);font-weight:650;line-height:1.3;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+.pause-progress{height:8px;margin-top:22px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.22)}
+.pause-progress-fill{height:100%;width:0;background:#ffd96a;border-radius:10px}
+.progress-times{display:flex;justify-content:space-between;margin-top:10px;font-size:clamp(15px,1.6vw,20px);font-variant-numeric:tabular-nums;color:#e2e9f3}
+.state-card[data-kind="error"] .indicator-icon{color:#ff9393}
+.state-card[data-kind="buffering"] .indicator-icon,.state-card[data-kind="loading"] .indicator-icon{color:#91caff;animation:spin 1.2s linear infinite}
+.state-title{margin-top:10px;font-size:clamp(24px,3.2vw,42px);font-weight:750;line-height:1.15}
+.state-detail{margin-top:12px;font-size:clamp(15px,1.6vw,21px);line-height:1.45;color:#d5deed;overflow-wrap:anywhere}
+.notice{position:absolute;left:50%;top:6%;transform:translateX(-50%);box-sizing:border-box;max-width:88%;display:flex;align-items:center;gap:16px;padding:17px 24px;background:rgba(13,17,24,.92);border:1px solid rgba(255,255,255,.25);border-radius:16px;box-shadow:0 8px 28px rgba(0,0,0,.3);pointer-events:none;animation:appear .18s ease-out}
+.notice .indicator-icon{width:34px;height:34px}
+.notice-title{font-size:clamp(18px,2vw,28px);font-weight:750;white-space:nowrap}
+.notice-detail{margin-top:5px;font-size:clamp(14px,1.4vw,19px);color:#d5deed;overflow-wrap:anywhere}
 #status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes appear{from{opacity:0}to{opacity:1}}
 </style>
-</head><body class="waiting"><video id="video" playsinline tabindex="0" aria-label="Synced anime video"></video><span id="status" role="status">Connecting to Torii…</span><script src="/hls.js"></script><script src="/player.js"></script></body></html>
+</head><body class="waiting"><main id="stage"><video id="video" playsinline tabindex="0" aria-label="Synced anime video"></video>
+<div id="state-layer" class="state-layer" role="status" aria-live="polite"><div id="state-card" class="state-card" data-kind="loading"><svg class="indicator-icon" viewBox="0 0 32 32" aria-hidden="true"><path id="state-icon" d="M26 16a10 10 0 1 1-10-10"/></svg><div id="state-title" class="state-title">Connecting…</div>
+<div id="pause-info" class="pause-info" hidden><div id="pause-series" class="pause-series"></div><div id="pause-episode" class="pause-episode"></div><div id="pause-progress" class="pause-progress" role="progressbar" aria-label="Episode progress" aria-valuemin="0" aria-valuemax="100"><div id="pause-progress-fill" class="pause-progress-fill"></div></div><div class="progress-times"><span id="pause-elapsed"></span><span id="pause-total"></span></div></div>
+<div id="state-detail" class="state-detail">Waiting for the downstairs TV</div></div></div>
+<div id="notice" class="notice" role="status" aria-live="polite" hidden><svg class="indicator-icon" viewBox="0 0 32 32" aria-hidden="true"><path id="notice-icon"/></svg><div><div id="notice-title" class="notice-title"></div><div id="notice-detail" class="notice-detail"></div></div></div>
+<span id="status">Connecting to Torii…</span></main><script src="/hls.js"></script><script type="module" src="/player.js"></script></body></html>
