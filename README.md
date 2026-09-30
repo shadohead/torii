@@ -86,16 +86,36 @@ inside Docker. Your normal Mac Discord account stays logged in separately.
 2. Play an anime from Torii's library on the TV. In **Setup → Watch together on
    Discord**, refresh players, choose the TV, and enable TV sync.
 3. On the server, open [the isolated desktop](http://127.0.0.1:6080/vnc.html?autoconnect=true&resize=scale).
-   Sign into the **separate account inside this desktop**, join a voice channel,
-   and share the **Torii Watch Together browser tab** with **Share tab audio**
-   enabled. Sharing the entire desktop does not carry tab audio.
+   Sign into the **separate account inside this desktop** and complete any email
+   verification. To enable automatic joining/sharing, copy your voice channel's
+   Discord URL and run:
+   ```sh
+   npm run watch-together:container -- automate 'https://discord.com/channels/SERVER_ID/VOICE_CHANNEL_ID' 'Lounge'
+   ```
+   The destination is saved in the container's own profile volume. When the TV is
+   playing, Playwright joins that channel and shares only the **Torii Watch
+   Together browser tab** with audio. Chromium's picker is restricted to that
+   unique tab title; it cannot select the entire screen or another application.
+   Without automation, join/share manually. Sharing the entire desktop does not
+   carry tab audio.
    The shared player shows only the video, with no title, buttons, pointer, or
-   scrollbars. Press **F** or double-click the video for fullscreen; **Esc** exits.
+   scrollbars. Automation enters video fullscreen on a 1280×720 virtual display
+   after sharing, preserving 16:9 framing across restarts. For manual sharing,
+   press **F** or double-click the video for fullscreen; **Esc** exits.
    Click the video if sound needs enabling, or press **M** to toggle mute.
 4. Friends join that Discord channel and click **Watch Stream**. Torii follows TV
-   pauses, buffering, seeks, track choices, and episode changes. Go Live needs to
-   be started once per Discord sharing session; Torii does not automate Discord
-   accounts. No Discord token or password is supplied to Torii or ShootyBot.
+   pauses, buffering, seeks, track choices, and episode changes. Automation
+   reconnects after an interrupted share and leaves after the TV has been idle for
+   60 seconds. It waits for you to handle login, email verification, MFA, or CAPTCHA
+   prompts. It uses the logged-in UI, without extracting a Discord token or
+   password or using private Discord APIs.
+
+Browser automation is an unofficial approach. Discord's
+[automated account policy](https://support.discord.com/hc/en-us/articles/115002192352-Automated-User-Accounts-Self-Bots)
+prohibits automating regular accounts and does not list a personal-server
+exception. Enable it only if you accept that account risk. Discord UI changes can
+require selector updates; retries back off to five minutes rather than repeatedly
+clicking. Configuration is opt-in, and malformed destinations fail closed.
 
 The container's desktop is bound to localhost port 6080. Its only volume holds its
 own browser profile; it mounts no Mac directories, display, audio device, or Docker
@@ -113,11 +133,17 @@ in Setup to tune it (positive means the companion is ahead). When Plex fails or
 progress stops arriving for 30 seconds, the companion pauses. External subtitles
 and multipart episodes are currently unsupported. Check audio and subtitle tracks
 on an actual episode before inviting friends; the Setup status confirms container
-playback, while Go Live must be checked in Discord.
+playback and observed Discord capture state. "Discord sharing video + audio"
+means the browser has live audio/video capture tracks and Discord shows its stop
+streaming control, not that a remote viewer has confirmed reception.
 
 Keep Docker/the server awake for a sharing session. The isolated Discord login
-persists across restarts; restarting the container requires starting Go Live again.
+persists across restarts, as does the configured automation destination. With
+automation enabled, restarting the container rejoins/reshares when the TV is active.
 Manage it with `npm run watch-together:container -- stop | status | logs`.
+Inspect automation with `npm run watch-together:container -- automation-status`;
+disable automatic actions with `npm run watch-together:container -- automation-off`
+(an already-running share is left alone). Re-enable it with `automate CHANNEL_URL`.
 To use a different Torii port, set `TORII_PORT` when starting the container; for
 custom networking, set `TORII_LOCAL_URL` (launcher connection) and
 `TORII_COMPANION_URL` (container connection). No host Plex playback is modified.

@@ -608,10 +608,10 @@ async function renderSetup() {
       </div>
       <ol class="together-steps">
         <li>On the server, run <code>npm run watch-together:container</code> once to start the isolated desktop.</li>
-        <li>Open <a href="http://127.0.0.1:6080/vnc.html?autoconnect=true&amp;resize=scale" target="_blank" rel="noopener">the isolated desktop</a> on the server. Sign into your separate Discord account there and join a voice channel.</li>
-        <li>In Discord’s share picker, choose the <b>Torii Watch Together browser tab</b> and enable <b>Share tab audio</b>.</li>
+        <li>Open <a href="http://127.0.0.1:6080/vnc.html?autoconnect=true&amp;resize=scale" target="_blank" rel="noopener">the isolated desktop</a> on the server and sign into your separate Discord account there.</li>
+        <li>Enable saved channel automation on the server with <code>npm run watch-together:container -- automate CHANNEL_URL</code>. Otherwise, join manually and share the <b>Torii Watch Together browser tab</b> with <b>tab audio</b>.</li>
       </ol>
-      <p class="set-help">Friends join the channel and click Watch Stream. Pauses, skips, and new episodes follow your TV. Start Go Live once per sharing session. Your normal Mac Discord login stays separate.</p>
+      <p class="set-help">Friends join the channel and click Watch Stream. With automation enabled, Discord joins and shares when the TV starts, reconnects after interruptions, and leaves after the TV has stopped for a minute. Login or verification prompts need your help in the isolated desktop. Your normal Mac Discord login stays separate.</p>
     </div>
     <div class="set-card">
       <h3>Plex server</h3>
@@ -769,7 +769,9 @@ function renderTogetherStatus(state) {
     text = `${s.state === 'playing' ? 'Following' : 'Paused with'} ${s.player} · ${s.show || s.title}${s.show ? ` · S${s.season}E${s.episode}` : ''}`;
   }
   if (state.enabled) text += state.companion ? ` · Container ${state.companion.state}` : ' · Container not connected';
-  const error = state.error || state.companion?.error;
+  const discord = state.companion?.discord;
+  if (discord) text += discord.state === 'streaming' ? ' · Discord sharing video + audio' : ` · Discord ${discord.state.replaceAll('_', ' ')}`;
+  const error = state.error || state.companion?.error || discord?.error;
   target.textContent = error || text;
   target.className = 'together-status ' + (error ? 'bad' : state.companion?.state === 'following' ? 'ok' : '');
   $('#together-start').textContent = state.enabled ? 'Save TV & sync' : 'Enable TV sync';

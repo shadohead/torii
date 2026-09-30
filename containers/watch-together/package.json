@@ -1,1 +1,1 @@
-{"name":"torii-discord-companion","private":true,"type":"module","dependencies":{"hls.js":"1.7.3"}}
+{"name":"torii-discord-companion","private":true,"type":"module","dependencies":{"hls.js":"1.7.3","playwright-core":"1.63.0"}}

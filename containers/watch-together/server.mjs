@@ -4,6 +4,7 @@ import { join, extname } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { Transcoder } from './transcode.mjs';
+import { readDiscordStatus } from './automation-config.mjs';
 
 const upstream = process.env.TORII_URL || 'http://host.docker.internal:3939';
 const headers = { Authorization: `Bearer ${process.env.TORII_WATCH_TOKEN || ''}` };
@@ -64,7 +65,7 @@ async function poll() {
       const requested = targetKey;
       job = prepare(session, requested).finally(() => { job = null; });
     } else if (readyKey === targetKey && !job) status = { state: 'following', error: null, session };
-    await bridge('/api/watch-together/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: status.state, error: status.error }) });
+    await bridge('/api/watch-together/heartbeat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ state: status.state, error: status.error, discord: readDiscordStatus() }) });
   } catch {
     targetKey = ''; downloadAbort?.abort();
     status = { state: 'error', error: 'Torii is unreachable. Playback paused until it reconnects.', session: null };
@@ -76,7 +77,7 @@ const server = http.createServer(async (req, res) => {
   if (url.pathname === '/health') { res.writeHead(200); return res.end('ok'); }
   if (url.pathname === '/status') {
     res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    return res.end(JSON.stringify({ ...status, base, generation, playlist: readyKey && readyKey === targetKey ? `/hls/${generation}/index.m3u8` : null }));
+    return res.end(JSON.stringify({ ...status, discord: readDiscordStatus(), base, generation, playlist: readyKey && readyKey === targetKey ? `/hls/${generation}/index.m3u8` : null }));
   }
   if (url.pathname === '/seek' && req.method === 'POST') {
     // The viewer requests a fresh segment range, but never controls the TV.

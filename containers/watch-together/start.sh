@@ -4,7 +4,7 @@ shutdown() { trap - TERM INT; wait || true; exit 0; }
 trap shutdown TERM INT
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-Xvfb :99 -screen 0 1280x800x24 -nolisten tcp &
+Xvfb :99 -screen 0 1280x720x24 -nolisten tcp &
 for attempt in {1..50}; do
   if test -S /tmp/.X11-unix/X99; then break; fi
   sleep 0.1
@@ -33,9 +33,5 @@ node --input-type=module -e '
 # Chromium's profile and display exist solely in this unprivileged container.
 # Docker drops capabilities; no host display, files, devices or socket are mounted.
 # The Chromium sandbox requires privileges/user namespaces unavailable here.
-dbus-run-session -- chromium --no-sandbox --disable-dev-shm-usage \
-  --no-first-run --disable-session-crashed-bubble --password-store=basic \
-  --autoplay-policy=no-user-gesture-required --window-size=1280,800 \
-  --user-data-dir=/home/torii/chromium \
-  http://127.0.0.1:8080/ https://discord.com/app &
+dbus-run-session -- node /opt/companion/discord-automation.mjs &
 wait -n

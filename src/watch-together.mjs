@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { PlaybackClock, publicSession } from './playback.mjs';
+import { publicDiscordStatus } from '../containers/watch-together/automation-config.mjs';
 
 export class WatchTogether {
   constructor({ readSessions, getSettings, setSettings, now = Date.now }) {
@@ -59,9 +60,10 @@ export class WatchTogether {
     const supplied = Buffer.from(header.slice(7)), expected = Buffer.from(token);
     return supplied.length === expected.length && timingSafeEqual(supplied, expected);
   }
-  heartbeat({ state, error }) {
+  heartbeat({ state, error, discord }) {
     if (!['waiting', 'loading', 'following', 'error'].includes(state)) throw new Error('Invalid companion state.');
     this.companion = { state, error: typeof error === 'string' ? error.slice(0, 250) : null, at: this.now() };
+    if (discord) this.companion.discord = publicDiscordStatus(discord, this.now());
   }
   async bridge() {
     await this.refresh();
